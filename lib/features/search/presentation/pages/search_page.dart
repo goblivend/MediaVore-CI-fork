@@ -1,69 +1,117 @@
-import 'dart:convert';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
-import '../../data/models/movie.dart';
+import 'package:mediavore/features/movie_details/presentation/pages/movie_detail_page.dart';
+import 'package:mediavore/features/search/presentation/pages/saved_movies_page.dart';
+import 'package:mediavore/features/search/presentation/providers/search_provider.dart';
+import 'package:provider/provider.dart';
 
+/// The main page for searching for movies.
 class SearchPage extends StatefulWidget {
-  final http.Client? httpClient;
-  const SearchPage({super.key, this.httpClient});
+  const SearchPage({super.key});
 
   @override
   State<SearchPage> createState() => _SearchPageState();
 }
 
 class _SearchPageState extends State<SearchPage> {
-  final TextEditingController _searchController = TextEditingController();
-  List<Movie> _movies = [];
-  bool _isLoading = false;
-
-  Future<void> _searchMovies(String query) async {
-    if (query.isEmpty) return;
-
-    setState(() {
-      _isLoading = true;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<SearchProvider>(context, listen: false).loadWatchlist();
     });
-
-    final token = dotenv.env['TMDB_API_TOKEN'];
-    final url = Uri.parse('https://api.themoviedb.org/3/search/movie?query=${Uri.encodeComponent(query)}');
-
-    try {
-      final client = widget.httpClient ?? http.Client();
-      final response = await client.get(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final List results = data['results'];
-        setState(() {
-          _movies = results.map((m) => Movie.fromJson(m)).toList();
-        });
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to load movies')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
   }
+
+  @override
+  Widget build(BuildContext context) {
+    final searchProvider = Provider.of<SearchProvider>(context, listen: false);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('MediaVore Search'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.bookmark),
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SavedMoviesPage(),
+                ),
+              );
+              searchProvider.loadWatchlist();
+            },
+          ),
+        ],
+      ),
+      body: Consumer<SearchProvider>(
+        builder: (context, provider, child) {
+          if (provider.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (provider.movies.isEmpty) {
+            return const Center(child: Text('Search for movies!'));
+          }
+          return ListView.builder(
+            itemCount: provider.movies.length,
+            itemBuilder: (context, index) {
+              final movie = provider.movies[index];
+              final isSaved = provider.watchlistIds.contains(movie.id);
+              return InkWell(
+                onTap: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => MovieDetailPage(movie: movie),
+                    ),
+                  );
+                  provider.loadWatchlist();
+                },
+                child: ListTile(
+                  leading: movie.posterPath != null
+                      ? CachedNetworkImage(
+                          imageUrl:
+                              'https://image.tmdb.org/t/p/w92${movie.posterPath}',
+                          width: 50,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) =>
+                              const Center(child: CircularProgressIndicator()),
+                          errorWidget: (context, url, error) =>
+                              const Icon(Icons.movie),
+                        )
+                      : const Icon(Icons.movie),
+                  title: Text(movie.title),
+                  subtitle: Text(
+                    movie.releaseDate,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: IconButton(
+                    icon: Icon(
+                      isSaved ? Icons.bookmark : Icons.bookmark_border,
+                    ),
+                    onPressed: () => provider.toggleWatchlist(movie),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+      bottomNavigationBar: const SearchBottomBar(),
+    );
+  }
+}
+
+class SearchBottomBar extends StatefulWidget {
+  const SearchBottomBar({super.key});
+
+  @override
+  State<SearchBottomBar> createState() => _SearchBottomBarState();
+}
+
+class _SearchBottomBarState extends State<SearchBottomBar> {
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void dispose() {
@@ -73,65 +121,35 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('MediaVore Search'),
+    final searchProvider = Provider.of<SearchProvider>(context, listen: false);
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _movies.isEmpty
-              ? const Center(child: Text('Search for movies!'))
-              : ListView.builder(
-                  itemCount: _movies.length,
-                  itemBuilder: (context, index) {
-                    final movie = _movies[index];
-                    return ListTile(
-                      leading: movie.posterPath != null
-                          ? Image.network(
-                              'https://image.tmdb.org/t/p/w92${movie.posterPath}',
-                              width: 50,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  const Icon(Icons.movie),
-                            )
-                          : const Icon(Icons.movie),
-                      title: Text(movie.title),
-                      subtitle: Text(
-                        movie.releaseDate,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    );
-                  },
-                ),
-      bottomNavigationBar: Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: BottomAppBar(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: const InputDecoration(
-                      hintText: 'Search movie names...',
-                      border: OutlineInputBorder(),
-                    ),
-                    onSubmitted: (value) => _searchMovies(value),
+      child: BottomAppBar(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  decoration: const InputDecoration(
+                    hintText: 'Search movie names...',
+                    border: OutlineInputBorder(),
                   ),
+                  onSubmitted: (value) => searchProvider.searchMovies(value),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.search),
-                  onPressed: () => _searchMovies(_searchController.text),
-                ),
-              ],
-            ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.search),
+                onPressed: () => searchProvider.searchMovies(_searchController.text),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 }
+
