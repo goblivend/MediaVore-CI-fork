@@ -10,8 +10,6 @@ import 'package:mocktail/mocktail.dart';
 import 'package:provider/provider.dart';
 import '../../../../helpers/mocks.dart';
 
-class FakeMediaItem extends Fake implements MediaItem {}
-
 void main() {
   late MockMediaRepository mockMediaRepository;
   late SearchProvider searchProvider;
