@@ -19,8 +19,6 @@ class MockMediaRemoteDataSource extends Mock implements MediaRemoteDataSource {}
 
 class MockMediaListLocalDataSource extends Mock implements MediaListLocalDataSource {}
 
-class MockMediaListLocalDataSource extends Mock implements MediaListLocalDataSource {}
-
 class MockIsar extends Mock implements Isar {}
 
 class MockMediaCache extends Mock implements MediaCache {}
