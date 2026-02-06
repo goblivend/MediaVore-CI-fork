@@ -3,6 +3,8 @@ import 'package:mediavore/core/domain/entities/media_item.dart';
 import 'package:mediavore/core/domain/entities/media_details.dart';
 import 'package:mediavore/core/domain/entities/seen_item.dart';
 
+enum ImportMode { append, replace, merge }
+
 /// Abstract class for a repository that handles media (movies and series) data.
 abstract class MediaRepository {
   /// Searches for media based on a query.
@@ -71,12 +73,26 @@ abstract class MediaRepository {
   /// Gets the approximate size of the cache in bytes.
   Future<int> getCacheSize();
 
+  /// Gets the approximate size of the seen database in bytes.
+  Future<int> getSeenDbSize();
+
   /// Clears the cache. If [complete] is true, everything is deleted.
   /// If false, only non-essential items are deleted.
   Future<void> clearCache({required bool complete});
 
   /// Manually triggers a full cache fill (pre-caching lists and recent seen).
   Future<void> fillCache();
+
+  /// Exports seen data as a list of maps.
+  Future<List<Map<String, dynamic>>> exportSeenData({
+    DateTime? start,
+    DateTime? end,
+    int? tmdbId,
+    MediaType? type,
+  });
+
+  /// Imports seen data.
+  Future<void> importSeenData(List<Map<String, dynamic>> data, {ImportMode mode = ImportMode.append});
 }
 
 class MediaItemPreview {

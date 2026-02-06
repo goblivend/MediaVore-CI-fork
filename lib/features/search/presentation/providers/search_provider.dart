@@ -14,34 +14,41 @@ class SearchProvider with ChangeNotifier {
   List<MediaItem> _searchResults = [];
   bool _isLoading = false;
   bool _isCacheLoading = false;
+  bool _isDbSizeLoading = false;
   String? _error;
   bool _isOffline = false;
   List<String> _listNames = ['watchlist'];
   final Map<String, List<String>> _listEntries = {}; // listName -> ["id:type"]
   int _cacheSize = 0;
+  int _seenDbSize = 0;
   int _resetCount = 0;
   int _currentPage = 1;
   String _currentQuery = '';
   bool _hasMore = true;
   
+  List<SeenItem> _seenItems = [];
   Map<String, int> _seenCounts = {}; // "id:type" -> count
   List<String> _watchlistIds = []; // Simplified IDs for quick checks
 
   List<MediaItem> get items => _searchResults; // For SearchPage
   bool get isLoading => _isLoading;
   bool get isCacheLoading => _isCacheLoading;
+  bool get isDbSizeLoading => _isDbSizeLoading;
   String? get error => _error;
   bool get isOffline => _isOffline;
   List<String> get listNames => _listNames;
   int get cacheSize => _cacheSize;
+  int get seenDbSize => _seenDbSize;
   int get resetCount => _resetCount;
   bool get hasMore => _hasMore;
   List<String> get watchlistIds => _watchlistIds;
+  List<SeenItem> get seenItems => _seenItems;
 
   Future<void> _init() async {
     await loadListNames();
     await _loadAllListEntries();
     await updateCacheSize();
+    await updateSeenDbSize();
     await loadAllSeenStatus();
     await loadWatchlist();
   }
@@ -51,6 +58,14 @@ class SearchProvider with ChangeNotifier {
     notifyListeners();
     _cacheSize = await repository.getCacheSize();
     _isCacheLoading = false;
+    notifyListeners();
+  }
+
+  Future<void> updateSeenDbSize() async {
+    _isDbSizeLoading = true;
+    notifyListeners();
+    _seenDbSize = await repository.getSeenDbSize();
+    _isDbSizeLoading = false;
     notifyListeners();
   }
 
@@ -92,12 +107,31 @@ class SearchProvider with ChangeNotifier {
   }
 
   Future<void> loadAllSeenStatus() async {
-    final seen = await repository.getSeenItems();
+    _seenItems = await repository.getSeenItems();
     final Map<String, int> counts = {};
-    for (final item in seen) {
+    
+    // Group seen items by their media key
+    final Map<String, List<SeenItem>> grouped = {};
+    for (final item in _seenItems) {
       final key = '${item.tmdbId}:${item.type.name}';
-      counts[key] = (counts[key] ?? 0) + 1;
+      grouped.putIfAbsent(key, () => []).add(item);
     }
+
+    // For each media key, calculate the count
+    grouped.forEach((key, items) {
+      if (items.first.type == MediaType.movie) {
+        // For movies, count total viewings
+        counts[key] = items.length;
+      } else {
+        // For series, count unique episode viewings
+        counts[key] = items
+            .where((i) => i.seasonNumber != null && i.episodeNumber != null)
+            .map((i) => '${i.seasonNumber}:${i.episodeNumber}')
+            .toSet()
+            .length;
+      }
+    });
+
     _seenCounts = counts;
     notifyListeners();
   }
@@ -225,14 +259,17 @@ class SearchProvider with ChangeNotifier {
   Future<void> markAsSeen(SeenItem item) async {
     await repository.markAsSeen(item);
     await loadAllSeenStatus();
+    await updateSeenDbSize();
   }
   Future<void> deleteSeenEntry(int id) async {
     await repository.deleteSeenEntry(id);
     await loadAllSeenStatus();
+    await updateSeenDbSize();
   }
   Future<void> removeFromSeen(int tmdbId, MediaType type, {int? seasonNumber, int? episodeNumber}) async {
     await repository.removeFromSeen(tmdbId, type, seasonNumber: seasonNumber, episodeNumber: episodeNumber);
     await loadAllSeenStatus();
+    await updateSeenDbSize();
   }
 
   List<MediaItemPreview> getPreviewsForList(String name) {
@@ -252,4 +289,25 @@ class SearchProvider with ChangeNotifier {
   }
 
   Future<void> loadLists() => loadListNames();
+
+  Future<List<Map<String, dynamic>>> exportSeenData({
+    DateTime? start,
+    DateTime? end,
+    int? tmdbId,
+    MediaType? type,
+  }) {
+    return repository.exportSeenData(
+      start: start,
+      end: end,
+      tmdbId: tmdbId,
+      type: type,
+    );
+  }
+
+  Future<void> importSeenData(List<Map<String, dynamic>> data, {ImportMode mode = ImportMode.append}) async {
+    await repository.importSeenData(data, mode: mode);
+    await loadAllSeenStatus();
+    await updateCacheSize();
+    await updateSeenDbSize();
+  }
 }

@@ -25,6 +25,7 @@ void main() {
     when(() => mockMediaRepository.getAllListNames()).thenAnswer((_) async => ['watchlist']);
     when(() => mockMediaRepository.getListEntries(any())).thenAnswer((_) async => []);
     when(() => mockMediaRepository.getCacheSize()).thenAnswer((_) async => 0);
+    when(() => mockMediaRepository.getSeenDbSize()).thenAnswer((_) async => 0);
     when(() => mockMediaRepository.getSeenItems()).thenAnswer((_) async => []);
     when(() => mockMediaRepository.getWatchlistEntries()).thenAnswer((_) async => []);
 
@@ -62,6 +63,9 @@ void main() {
     ];
 
     when(() => mockMediaRepository.getSeenItems()).thenAnswer((_) async => seenItems);
+    
+    // Manually trigger reload to update Provider's state before building
+    await searchProvider.loadAllSeenStatus();
 
     await tester.pumpWidget(createWidgetUnderTest());
     await tester.pumpAndSettle();
@@ -81,6 +85,8 @@ void main() {
     // Initial state: 1 item
     when(() => mockMediaRepository.getSeenItems()).thenAnswer((_) async => seenItems);
     when(() => mockMediaRepository.deleteSeenEntry(any())).thenAnswer((_) async {});
+
+    await searchProvider.loadAllSeenStatus();
 
     await tester.pumpWidget(createWidgetUnderTest());
     await tester.pumpAndSettle();

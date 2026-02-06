@@ -1,9 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:isar/isar.dart';
+import 'package:mediavore/core/cache/cached_media.dart';
 import 'package:mediavore/features/media_details/data/datasources/media_list_local_data_source.dart';
 import 'package:mediavore/features/media_details/data/models/media_list_item.dart';
 import 'package:mediavore/features/media_details/data/models/user_list.dart';
 import 'package:mediavore/features/media_details/data/models/seen_item_model.dart';
+import 'package:mediavore/features/search/domain/repositories/media_repository.dart';
 import 'dart:io';
 
 void main() {
@@ -21,7 +23,14 @@ void main() {
 
   setUp(() async {
     isar = await Isar.open(
-      [MediaListItemSchema, UserListSchema, SeenItemModelSchema],
+      [
+        MediaListItemSchema, 
+        UserListSchema, 
+        SeenItemModelSchema,
+        CachedMediaSchema,
+        CachedActorProfileSchema,
+        CachedSeasonSchema,
+      ],
       directory: tempPath,
       name: 'test_media_list_db',
     );
@@ -107,6 +116,99 @@ void main() {
       
       items = await dataSource.getAllSeenItems();
       expect(items, isEmpty);
+    });
+  });
+
+  group('MediaListLocalDataSource - Import & Export', () {
+    test('getExportData should return filtered results by date range', () async {
+      await dataSource.markAsSeen(SeenItemModel(tmdbId: 1, type: 'movie', title: 'Old', seenDate: DateTime(2022)));
+      await dataSource.markAsSeen(SeenItemModel(tmdbId: 2, type: 'movie', title: 'Target', seenDate: DateTime(2023, 6)));
+      await dataSource.markAsSeen(SeenItemModel(tmdbId: 3, type: 'movie', title: 'New', seenDate: DateTime(2024)));
+
+      final results = await dataSource.getExportData(
+        start: DateTime(2023, 1),
+        end: DateTime(2023, 12, 31),
+      );
+
+      expect(results.length, 1);
+      expect(results.first.title, 'Target');
+    });
+
+    test('getExportData should return filtered results by tmdbId', () async {
+      await dataSource.markAsSeen(SeenItemModel(tmdbId: 1, type: 'movie', title: 'A', seenDate: DateTime(2023)));
+      await dataSource.markAsSeen(SeenItemModel(tmdbId: 2, type: 'movie', title: 'B', seenDate: DateTime(2023)));
+
+      final results = await dataSource.getExportData(tmdbId: 1);
+
+      expect(results.length, 1);
+      expect(results.first.title, 'A');
+    });
+
+    test('importSeenItems - Mode REPLACE should clear existing and add new', () async {
+      await dataSource.markAsSeen(SeenItemModel(tmdbId: 1, type: 'movie', title: 'Existing', seenDate: DateTime(2023)));
+      
+      final newItems = [
+        SeenItemModel(tmdbId: 2, type: 'movie', title: 'Imported', seenDate: DateTime(2024)),
+      ];
+
+      await dataSource.importSeenItems(newItems, mode: ImportMode.replace);
+
+      final items = await dataSource.getAllSeenItems();
+      expect(items.length, 1);
+      expect(items.first.title, 'Imported');
+    });
+
+    test('importSeenItems - Mode MERGE should not add duplicates', () async {
+      final date = DateTime(2023, 10, 1);
+      await dataSource.markAsSeen(SeenItemModel(tmdbId: 1, type: 'movie', title: 'A', seenDate: date));
+      
+      final itemsToImport = [
+        SeenItemModel(tmdbId: 1, type: 'movie', title: 'A', seenDate: date), // Exact duplicate
+        SeenItemModel(tmdbId: 2, type: 'movie', title: 'B', seenDate: date), // New item
+      ];
+
+      await dataSource.importSeenItems(itemsToImport, mode: ImportMode.merge);
+
+      final items = await dataSource.getAllSeenItems();
+      expect(items.length, 2); // 'A' was merged, 'B' was added
+    });
+  });
+
+  group('MediaListLocalDataSource - Seen DB Size', () {
+    test('getSeenDbSize should only include seen history and ignore lists or cache', () async {
+      // 1. Initial size (may not be 0 due to file metadata, but should be small)
+      final initialSize = await dataSource.getSeenDbSize();
+      
+      // 2. Add seen item
+      await dataSource.markAsSeen(SeenItemModel(
+        tmdbId: 1, type: 'movie', title: 'Seen', seenDate: DateTime.now(),
+      ));
+      final sizeAfterSeen = await dataSource.getSeenDbSize();
+      expect(sizeAfterSeen, greaterThan(initialSize));
+
+      // 3. Add list item
+      await dataSource.addToList(id: 1, type: 'movie', listName: 'L', title: 'List');
+      final sizeAfterList = await dataSource.getSeenDbSize();
+      // Should remain exactly the same as only seenItemModels are counted
+      expect(sizeAfterList, equals(sizeAfterSeen));
+
+      // 4. Add user list
+      await isar.writeTxn(() => isar.userLists.put(UserList(name: 'My New List')));
+      final sizeAfterUserList = await dataSource.getSeenDbSize();
+      expect(sizeAfterUserList, equals(sizeAfterSeen));
+
+      // 5. Add cached item
+      await isar.writeTxn(() async {
+        await isar.cachedMedias.put(CachedMedia(
+          tmdbId: 1, 
+          type: 'movie', 
+          updatedAt: DateTime.now(),
+          mediaItemJson: '{"huge":"json_data_to_increase_actual_file_size"}',
+        ));
+      });
+      final sizeAfterCache = await dataSource.getSeenDbSize();
+      // Should still remain the same
+      expect(sizeAfterCache, equals(sizeAfterSeen));
     });
   });
 
