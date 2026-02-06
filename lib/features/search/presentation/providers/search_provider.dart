@@ -396,7 +396,6 @@ class SearchProvider with ChangeNotifier {
 
     _isLoading = true;
     notifyListeners();
-  }
 
     try {
       _currentPage++;
