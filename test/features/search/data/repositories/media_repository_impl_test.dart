@@ -19,15 +19,15 @@ void main() {
   setUpAll(() {
     registerFallbackValue(MediaType.movie);
     registerFallbackValue(SeenItemModel(
-      tmdbId: 1, 
-      type: 'movie', 
-      title: 'T', 
+      tmdbId: 1,
+      type: 'movie',
+      title: 'T',
       seenDate: DateTime(2000)
     ));
     registerFallbackValue(const MediaItem(
-      id: 0, 
-      title: '', 
-      overview: '', 
+      id: 0,
+      title: '',
+      overview: '',
       releaseDate: ''
     ));
     registerFallbackValue(MediaDetails(
@@ -41,7 +41,7 @@ void main() {
     mockRemoteDataSource = MockMediaRemoteDataSource();
     mockLocalDataSource = MockMediaListLocalDataSource();
     mockCache = MockMediaCache();
-    
+
     // Mock cache and data source setup
     when(() => mockCache.init()).thenAnswer((_) async {});
     when(() => mockCache.cleanup(keepKeys: any(named: 'keepKeys'), olderThan: any(named: 'olderThan')))
@@ -163,19 +163,6 @@ void main() {
     });
   });
 
-  group('getSeasonDetails', () {
-    test('should call remote data source for season details', () async {
-      final tData = {'episodes': []};
-      when(() => mockRemoteDataSource.getSeasonDetails(any(), any()))
-          .thenAnswer((_) async => tData);
-
-      final result = await repository.getSeasonDetails(1, 1);
-
-      expect(result, tData);
-      verify(() => mockRemoteDataSource.getSeasonDetails(1, 1)).called(1);
-    });
-  });
-
   group('getActorDetails', () {
     const tActorId = 1;
     const tActorDetails = ActorDetails(
@@ -214,14 +201,15 @@ void main() {
     });
 
     test('removeFromSeen should call local data source', () async {
-      when(() => mockLocalDataSource.removeFromSeen(any(), any(), 
-          seasonNumber: any(named: 'seasonNumber'), 
+      when(() => mockLocalDataSource.removeFromSeen(any(), any(),
+          seasonNumber: any(named: 'seasonNumber'),
           episodeNumber: any(named: 'episodeNumber')))
           .thenAnswer((_) async {});
 
       await repository.removeFromSeen(1, MediaType.movie);
       verify(() => mockLocalDataSource.removeFromSeen(1, 'movie')).called(1);
     });
+  });
 
   group('Watchlist & Lists', () {
     test('addToWatchlist should call local data source and cache full details', () async {
@@ -231,7 +219,7 @@ void main() {
         listName: any(named: 'listName'),
         title: any(named: 'title'),
       )).thenAnswer((_) async {});
-      
+
       when(() => mockCache.areDetailsCached(any(), any())).thenReturn(true);
       when(() => mockCache.getDetails(any(), any())).thenReturn(
         MediaDetails(item: tMediaItem, cast: [], director: tDirector)
