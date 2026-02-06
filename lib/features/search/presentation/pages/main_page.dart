@@ -60,7 +60,7 @@ class _MainPageState extends State<MainPage> {
     if (uri.path == '/share' || (uri.scheme == 'mediavore' && uri.host == 'share')) {
       final name = uri.queryParameters['name'];
       final itemsStr = uri.queryParameters['items'];
-      
+
       if (name != null && itemsStr != null) {
         final items = itemsStr.split(',');
         _showImportDialog(name, items);
@@ -95,7 +95,7 @@ class _MainPageState extends State<MainPage> {
               await provider.importList(controller.text, entries);
               if (mounted) {
                 navigator.pop();
-                setState(() => _selectedIndex = 1); 
+                setState(() => _selectedIndex = 1);
               }
             },
             child: const Text('Import'),
@@ -119,7 +119,7 @@ class _MainPageState extends State<MainPage> {
         children: _pages,
       ),
       bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed, // Added to show more than 3 items
+        type: BottomNavigationBarType.fixed,
         items: const <BottomNavigationBarItem>[
           BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
           BottomNavigationBarItem(icon: Icon(Icons.bookmark), label: 'My Lists'),
@@ -127,7 +127,6 @@ class _MainPageState extends State<MainPage> {
           BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'Alerts'),
         ],
         currentIndex: _selectedIndex,
-        selectedItemColor: Colors.deepPurple,
         onTap: _onItemTapped,
       ),
     );

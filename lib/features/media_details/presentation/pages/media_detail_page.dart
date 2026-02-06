@@ -6,6 +6,7 @@ import 'package:mediavore/core/domain/entities/media_item.dart';
 import 'package:mediavore/core/domain/entities/media_details.dart';
 import 'package:mediavore/core/domain/entities/seen_item.dart';
 import 'package:mediavore/core/utils/formatters.dart';
+import 'package:mediavore/core/theme/app_palette.dart';
 import 'package:mediavore/features/media_details/presentation/pages/actor_detail_page.dart';
 import 'package:mediavore/features/media_details/presentation/widgets/media_list_manager.dart';
 import 'package:mediavore/features/media_details/presentation/widgets/seen_manager.dart';
@@ -39,7 +40,7 @@ class _SearchIconText extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: Colors.grey),
+        Icon(icon, size: 16, color: context.appColors.comments),
         const SizedBox(width: 4),
         Text(text, style: Theme.of(context).textTheme.bodySmall),
       ],
@@ -60,9 +61,6 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
   @override
   void initState() {
     super.initState();
-    // Use a post-frame callback to start fetching data.
-    // This avoids triggering synchronous state changes (like offline status updates)
-    // in parent widgets (like MainPage) during the build phase.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _fetchMediaDetails();
@@ -77,7 +75,6 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
     super.dispose();
   }
 
-  /// Fetches the details from the repository via the provider.
   Future<void> _fetchMediaDetails() async {
     setState(() {
       _isLoading = true;
@@ -101,7 +98,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _isOffline = e.toString().contains('SocketException') || 
+          _isOffline = e.toString().contains('SocketException') ||
                        e.toString().contains('Network error') ||
                        e.toString().contains('connectionError');
         });
@@ -160,7 +157,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
       tmdbId: widget.item.id,
       type: widget.item.mediaType,
     );
-    
+
     if (data.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -236,10 +233,11 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
   @override
   Widget build(BuildContext context) {
     final itemToDisplay = _mediaDetails?.item ?? widget.item;
-    
+    final colors = context.appColors;
+
     final mediaQuery = MediaQuery.of(context);
     final bool isAndroid = Theme.of(context).platform == TargetPlatform.android;
-    final bool isAndroidButtons = isAndroid && 
+    final bool isAndroidButtons = isAndroid &&
         (mediaQuery.systemGestureInsets.bottom < 8 || mediaQuery.padding.bottom > 30);
 
     final String directorLabel = itemToDisplay.mediaType == MediaType.tv ? 'Creator' : 'Director';
@@ -263,12 +261,8 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
           ),
           if (itemToDisplay.mediaType == MediaType.movie)
             SeenManager(
-              tmdbId: itemToDisplay.id,
-              type: itemToDisplay.mediaType,
-              title: itemToDisplay.title,
-              posterPath: itemToDisplay.posterPath,
-              onSeenChanged: _fetchSeenStatus,
-              scrollController: _scrollController,
+              item: itemToDisplay,
+              compact: true,
             ),
         ],
       ),
@@ -286,15 +280,15 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) => Container(
                             height: 250,
-                            color: Colors.grey[300],
-                            child: const Center(child: Icon(Icons.broken_image, size: 64, color: Colors.grey)),
+                            color: colors.placeholder,
+                            child: Center(child: Icon(Icons.broken_image, size: 64, color: colors.comments)),
                           ),
                         )
                       : Container(
                           height: 250,
-                          color: Colors.grey,
-                          child: const Center(
-                            child: Icon(Icons.movie, size: 100),
+                          color: colors.placeholder,
+                          child: Center(
+                            child: Icon(Icons.movie, size: 100, color: colors.comments),
                           ),
                         ),
                   Padding(
@@ -315,28 +309,31 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
                                Badge(
                                 label: Row(
                                   children: [
-                                    const Icon(Icons.star, size: 12, color: Colors.white),
+                                    Icon(Icons.star, size: 12, color: colors.badgeText),
                                     const SizedBox(width: 4),
-                                    Text(itemToDisplay.voteAverage!.toStringAsFixed(1)),
+                                    Text(
+                                      itemToDisplay.voteAverage!.toStringAsFixed(1),
+                                      style: TextStyle(color: colors.badgeText),
+                                    ),
                                   ],
                                 ),
-                                backgroundColor: Colors.amber[800],
+                                backgroundColor: colors.ratingStar,
                               ),
                           ],
                         ),
                         const SizedBox(height: 8),
                         if (itemToDisplay.mediaType == MediaType.tv && itemToDisplay.numberOfEpisodes != null) ...[
                           LinearProgressIndicator(
-                            value: itemToDisplay.numberOfEpisodes! > 0 
-                                ? uniqueEpisodesSeenTotal / itemToDisplay.numberOfEpisodes! 
+                            value: itemToDisplay.numberOfEpisodes! > 0
+                                ? uniqueEpisodesSeenTotal / itemToDisplay.numberOfEpisodes!
                                 : 0,
-                            backgroundColor: Colors.grey[300],
-                            color: Colors.green,
+                            backgroundColor: colors.placeholder,
+                            color: colors.onWatchlist,
                           ),
                           const SizedBox(height: 4),
                           Text(
                             'Progress: $uniqueEpisodesSeenTotal / ${itemToDisplay.numberOfEpisodes} episodes seen',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.green, fontWeight: FontWeight.bold),
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: colors.onWatchlist, fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 8),
                         ],
@@ -344,27 +341,24 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
                         if (itemToDisplay.mediaType == MediaType.tv)
                           WatchNextButton(
                             item: itemToDisplay,
-                            onSeenChanged: () {
-                              _fetchSeenStatus();
-                            },
                           ),
-                        
+
                         if (_isOffline)
                           Container(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             width: double.infinity,
                             child: Column(
                               children: [
-                                const Icon(Icons.cloud_off, size: 48, color: Colors.orange),
+                                Icon(Icons.cloud_off, size: 48, color: colors.warning),
                                 const SizedBox(height: 8),
                                 Text(
                                   'Offline Mode',
                                   style: Theme.of(context).textTheme.titleMedium,
                                 ),
-                                const Text(
+                                Text(
                                   'Detailed information is unavailable without internet.',
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(color: Colors.grey),
+                                  style: TextStyle(color: colors.comments),
                                 ),
                                 const SizedBox(height: 16),
                                 ElevatedButton.icon(
@@ -418,7 +412,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                         ],
-                        
+
                         if (itemToDisplay.mediaType == MediaType.tv && itemToDisplay.seasons != null) ...[
                           const SizedBox(height: 24),
                           const Text(
@@ -450,15 +444,15 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
                                     subtitle: Text(
                                       '$episodesSeenInSeason / ${season.episodeCount} episodes seen',
                                       style: TextStyle(
-                                        color: isComplete ? Colors.green : null,
+                                        color: isComplete ? colors.onWatchlist : null,
                                         fontWeight: isComplete ? FontWeight.bold : null,
                                       ),
                                     ),
                                     trailing: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        if (isComplete) const Icon(Icons.check_circle, color: Colors.green),
-                                        isLoading 
+                                        if (isComplete) Icon(Icons.check_circle, color: colors.onWatchlist),
+                                        isLoading
                                           ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                                           : Icon(isExpanded ? Icons.expand_less : Icons.expand_more),
                                       ],
@@ -474,13 +468,9 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
                                             title: Text('E${episode['episode_number']}: ${episode['name']}'),
                                             subtitle: Text(episode['air_date'] ?? ''),
                                             trailing: SeenManager(
-                                              tmdbId: itemToDisplay.id,
-                                              type: MediaType.tv,
-                                              title: itemToDisplay.title,
-                                              posterPath: itemToDisplay.posterPath,
+                                              item: itemToDisplay,
                                               seasonNumber: seasonNumber,
                                               episodeNumber: episode['episode_number'],
-                                              onSeenChanged: _fetchSeenStatus,
                                             ),
                                           );
                                         }).toList(),
@@ -531,9 +521,10 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
                                                   backgroundImage: NetworkImage(
                                                       'https://image.tmdb.org/t/p/w185${member.profilePath}'),
                                                 )
-                                              : const CircleAvatar(
+                                              : CircleAvatar(
                                                   radius: 40,
-                                                  child: Icon(Icons.person),
+                                                  backgroundColor: colors.placeholder,
+                                                  child: Icon(Icons.person, color: colors.comments),
                                                 ),
                                           const SizedBox(height: 4),
                                           Text(
@@ -560,9 +551,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
                         ],
                         const SizedBox(height: 24),
                         MediaListManager(
-                          itemId: itemToDisplay.id,
-                          mediaType: itemToDisplay.mediaType,
-                          title: itemToDisplay.title,
+                          item: itemToDisplay,
                         ),
                       ],
                     ),

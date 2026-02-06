@@ -8,7 +8,9 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:mediavore/core/di/injection.dart';
 import 'package:mediavore/core/domain/entities/media_item.dart';
+import 'package:mediavore/core/theme/app_palette.dart';
 import 'package:mediavore/features/media_details/presentation/pages/media_detail_page.dart';
+import 'package:mediavore/features/media_details/presentation/widgets/like_button.dart';
 import 'package:mediavore/features/search/domain/repositories/media_repository.dart';
 import 'package:mediavore/features/search/presentation/providers/search_provider.dart';
 import 'package:mediavore/features/settings/presentation/pages/settings_page.dart';
@@ -57,7 +59,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
     });
   }
 
-  /// Programmatically crops the white space from the app icon to make the logo 
+  /// Programmatically crops the white space from the app icon to make the logo
   /// appear larger in the QR code.
   Future<void> _prepareCroppedLogo() async {
     try {
@@ -68,7 +70,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
 
       // Crop to the central 58% where the character is located
       final double size = fullImage.width.toDouble();
-      final double cropSize = size * 0.58; 
+      final double cropSize = size * 0.58;
       final double offset = (size - cropSize) / 2;
 
       final recorder = ui.PictureRecorder();
@@ -83,7 +85,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
 
       final croppedImage = await recorder.endRecording().toImage(cropSize.toInt(), cropSize.toInt());
       final byteData = await croppedImage.toByteData(format: ui.ImageByteFormat.png);
-      
+
       if (mounted) {
         setState(() {
           _croppedLogoBytes = byteData?.buffer.asUint8List();
@@ -96,7 +98,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
 
   Future<void> loadSavedMedia({bool forceRefresh = false}) async {
     if (!mounted) return;
-    
+
     if (forceRefresh) {
       context.read<SearchProvider>().setOffline(false);
     }
@@ -129,17 +131,17 @@ class SavedMediaPageState extends State<SavedMediaPage> {
         final id = int.parse(parts[0]);
         final typeStr = parts.length > 1 ? parts[1] : 'movie';
         final type = typeStr == 'tv' ? MediaType.tv : MediaType.movie;
-        
+
         final local = localItems.firstWhere(
           (l) => l.id == id && l.type == type.name,
           orElse: () => MediaItemPreview(id: id, title: 'Unknown', type: typeStr),
         );
-        
+
         return MediaItem(
           id: local.id,
           title: local.title,
-          overview: '', 
-          releaseDate: '', 
+          overview: '',
+          releaseDate: '',
           mediaType: type,
           posterPath: local.posterPath,
         );
@@ -151,7 +153,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
           final id = int.parse(parts[0]);
           final typeStr = parts.length > 1 ? parts[1] : 'movie';
           final type = typeStr == 'tv' ? MediaType.tv : MediaType.movie;
-              
+
           try {
             final details = await provider.getMediaDetails(id, type);
             return details.item;
@@ -163,8 +165,8 @@ class SavedMediaPageState extends State<SavedMediaPage> {
             return MediaItem(
               id: local.id,
               title: local.title,
-              overview: '', 
-              releaseDate: '', 
+              overview: '',
+              releaseDate: '',
               mediaType: type,
               posterPath: local.posterPath,
             );
@@ -175,7 +177,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
       });
       items = (await Future.wait(itemFutures)).where((item) => item.id != 0).toList();
     }
-    
+
     if (mounted) {
       provider.loadAllSeenStatus();
     }
@@ -186,11 +188,11 @@ class SavedMediaPageState extends State<SavedMediaPage> {
   Future<void> _removeSelectedItems() async {
     final provider = context.read<SearchProvider>();
     final itemsToRemove = _currentItems.where((item) => _selectedItems.contains('${item.id}:${item.mediaType.name}')).toList();
-    
+
     for (final item in itemsToRemove) {
       await provider.toggleInList(item, _selectedList);
     }
-    
+
     setState(() {
       _isEditMode = false;
       _selectedItems.clear();
@@ -200,7 +202,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
 
   List<MediaItem> _getFilteredAndSortedItems(List<MediaItem> items, SettingsProvider settings) {
     List<MediaItem> result = List.from(items);
-    
+
     if (settings.hideNonReleased) {
       final now = DateTime.now();
       result = result.where((item) {
@@ -224,7 +226,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
     if (_isReversed) {
       result = result.reversed.toList();
     }
-    
+
     return result;
   }
 
@@ -309,6 +311,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
     // Respect CURRENT visible order and filters
     final visibleItems = _getFilteredAndSortedItems(_currentItems, settings);
     final previewPosters = visibleItems.where((i) => i.posterPath != null).take(3).toList();
+    final colors = context.appColors;
 
     showDialog(
       context: context,
@@ -338,9 +341,9 @@ class SavedMediaPageState extends State<SavedMediaPage> {
                         version: QrVersions.auto,
                         size: 250.0,
                         backgroundColor: Colors.white,
-                        eyeStyle: const QrEyeStyle(
+                        eyeStyle: QrEyeStyle(
                           eyeShape: QrEyeShape.circle,
-                          color: Colors.deepPurple,
+                          color: colors.logicFlow,
                         ),
                         dataModuleStyle: const QrDataModuleStyle(
                           dataModuleShape: QrDataModuleShape.circle,
@@ -365,14 +368,14 @@ class SavedMediaPageState extends State<SavedMediaPage> {
                               width: 45,
                               height: 65,
                               fit: BoxFit.cover,
-                              placeholder: (context, url) => Container(color: Colors.grey[200]),
+                              placeholder: (context, url) => Container(color: colors.placeholder),
                             ),
                           ),
                         )).toList(),
                       ),
                     ],
                     const SizedBox(height: 12),
-                    const Text('MediaVore List Share', style: TextStyle(color: Colors.deepPurple, fontSize: 14, fontWeight: FontWeight.w500)),
+                    Text('MediaVore List Share', style: TextStyle(color: colors.logicFlow, fontSize: 14, fontWeight: FontWeight.w500)),
                   ],
                 ),
               ),
@@ -435,7 +438,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
       final uri = Uri.parse(link);
       final name = uri.queryParameters['name'];
       final itemsStr = uri.queryParameters['items'];
-      
+
       if (name != null && itemsStr != null) {
         final items = itemsStr.split(',');
         _showImportConfirmationDialog(context.read<SearchProvider>(), name, items);
@@ -463,12 +466,12 @@ class SavedMediaPageState extends State<SavedMediaPage> {
             onPressed: () {
               final url = controller.text.trim();
               if (url.isEmpty) return;
-              
+
               try {
                 final uri = Uri.parse(url);
                 final name = uri.queryParameters['name'];
                 final itemsStr = uri.queryParameters['items'];
-                
+
                 if (name != null && itemsStr != null) {
                   final items = itemsStr.split(',');
                   Navigator.pop(context);
@@ -531,6 +534,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
   }
 
   void _showSortOptions() {
+    final colors = context.appColors;
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -549,7 +553,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
                     height: 4,
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
-                      color: Colors.grey[300],
+                      color: colors.placeholder,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -560,11 +564,11 @@ class SavedMediaPageState extends State<SavedMediaPage> {
                   _buildSortItem(SortMethod.shuffle, 'Shuffle', Icons.shuffle, 'Randomize the list'),
                   const Divider(),
                   ListTile(
-                    leading: Icon(_isReversed ? Icons.swap_vert_circle : Icons.swap_vert, color: _isReversed ? Colors.deepPurple : null),
+                    leading: Icon(_isReversed ? Icons.swap_vert_circle : Icons.swap_vert, color: _isReversed ? colors.logicFlow : null),
                     title: const Text('Reverse Order'),
                     trailing: Switch(
                       value: _isReversed,
-                      activeThumbColor: Colors.deepPurple, // activeColor is deprecated
+                      activeThumbColor: colors.logicFlow,
                       onChanged: (value) {
                         setState(() {
                           _isReversed = value;
@@ -590,14 +594,15 @@ class SavedMediaPageState extends State<SavedMediaPage> {
 
   Widget _buildSortItem(SortMethod method, String label, IconData icon, String subtitle) {
     final isSelected = _sortMethod == method;
+    final colors = context.appColors;
     return ListTile(
-      leading: Icon(icon, color: isSelected ? Colors.deepPurple : null),
+      leading: Icon(icon, color: isSelected ? colors.logicFlow : null),
       title: Text(label, style: TextStyle(
         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        color: isSelected ? Colors.deepPurple : null,
+        color: isSelected ? colors.logicFlow : null,
       )),
       subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
-      trailing: isSelected ? const Icon(Icons.check_circle, color: Colors.deepPurple) : null,
+      trailing: isSelected ? Icon(Icons.check_circle, color: colors.logicFlow) : null,
       onTap: () {
         setState(() {
           _sortMethod = method;
@@ -624,6 +629,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
   Widget build(BuildContext context) {
     final provider = Provider.of<SearchProvider>(context);
     final settings = Provider.of<SettingsProvider>(context);
+    final colors = context.appColors;
 
     return PopScope(
       canPop: !_isEditMode,
@@ -637,7 +643,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
       },
       child: Scaffold(
         appBar: AppBar(
-          leading: _isEditMode 
+          leading: _isEditMode
             ? IconButton(icon: const Icon(Icons.close), onPressed: () => setState(() { _isEditMode = false; _selectedItems.clear(); }))
             : null,
           title: GestureDetector(
@@ -650,10 +656,10 @@ class SavedMediaPageState extends State<SavedMediaPage> {
               ],
             ),
           ),
-          actions: _isEditMode 
+          actions: _isEditMode
             ? [
                 IconButton(
-                  icon: const Icon(Icons.delete, color: Colors.red),
+                  icon: Icon(Icons.delete, color: colors.error),
                   onPressed: _selectedItems.isEmpty ? null : _removeSelectedItems,
                   tooltip: 'Remove selected',
                 ),
@@ -670,8 +676,8 @@ class SavedMediaPageState extends State<SavedMediaPage> {
                   tooltip: 'Sort Options',
                 ),
                 IconButton(
-                  icon: _isRefreshing 
-                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) 
+                  icon: _isRefreshing
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.refresh),
                   onPressed: _isRefreshing ? null : () async {
                     setState(() => _isRefreshing = true);
@@ -696,7 +702,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
             }
 
             final sortedItems = _getFilteredAndSortedItems(snapshot.data!, settings);
-            
+
             if (settings.displayMode == DisplayMode.grid) {
               return _buildGridView(sortedItems, provider, settings);
             } else if (settings.displayMode == DisplayMode.swipe) {
@@ -715,17 +721,17 @@ class SavedMediaPageState extends State<SavedMediaPage> {
       itemCount: items.length,
       clipBehavior: Clip.none,
       onReorder: (oldIndex, newIndex) async {
-        if (_sortMethod != SortMethod.manual) return; 
+        if (_sortMethod != SortMethod.manual) return;
 
         setState(() {
           if (newIndex > oldIndex) newIndex -= 1;
           final item = items.removeAt(oldIndex);
           items.insert(newIndex, item);
-          
+
           // Map indices to _currentItems to handle filtering correctly
           final oldPersistentIndex = _currentItems.indexOf(item);
           _currentItems.removeAt(oldPersistentIndex);
-          
+
           if (newIndex < items.length - 1) {
              final nextItemInFiltered = items[newIndex + 1];
              final nextPersistentIndex = _currentItems.indexOf(nextItemInFiltered);
@@ -734,7 +740,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
              _currentItems.add(item);
           }
         });
-        
+
         final orderedEntries = _currentItems.map((e) => '${e.id}:${e.mediaType.name}').toList();
         await provider.updateListOrder(_selectedList, orderedEntries);
       },
@@ -771,72 +777,67 @@ class SavedMediaPageState extends State<SavedMediaPage> {
   }
 
   Widget _buildGridView(List<MediaItem> items, SearchProvider provider, SettingsProvider settings) {
-    return Theme(
-      data: Theme.of(context).copyWith(
-        canvasColor: Colors.transparent, 
+    return ReorderableGridView.builder(
+      padding: const EdgeInsets.all(8),
+      clipBehavior: Clip.none,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: settings.gridSize.round(),
+        childAspectRatio: 0.66,
+        crossAxisSpacing: 4,
+        mainAxisSpacing: 4,
       ),
-      child: ReorderableGridView.builder(
-        padding: const EdgeInsets.all(8), 
-        clipBehavior: Clip.none,
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: settings.gridSize.round(),
-          childAspectRatio: 0.66,
-          crossAxisSpacing: 4,
-          mainAxisSpacing: 4,
-        ),
-        itemCount: items.length,
-        onReorder: (oldIndex, newIndex) async {
-          if (_sortMethod != SortMethod.manual) return;
+      itemCount: items.length,
+      onReorder: (oldIndex, newIndex) async {
+        if (_sortMethod != SortMethod.manual) return;
 
-          setState(() {
-            final item = items.removeAt(oldIndex);
-            items.insert(newIndex, item);
-            
-            // Map indices to _currentItems to handle filtering correctly
-            final oldPersistentIndex = _currentItems.indexOf(item);
-            _currentItems.removeAt(oldPersistentIndex);
-            
-            if (newIndex < items.length - 1) {
-               final nextItemInFiltered = items[newIndex + 1];
-               final nextPersistentIndex = _currentItems.indexOf(nextItemInFiltered);
-               _currentItems.insert(nextPersistentIndex, item);
-            } else {
-               _currentItems.add(item);
-            }
-          });
+        setState(() {
+          final item = items.removeAt(oldIndex);
+          items.insert(newIndex, item);
 
-          final orderedEntries = _currentItems.map((e) => '${e.id}:${e.mediaType.name}').toList();
-          await provider.updateListOrder(_selectedList, orderedEntries);
-        },
-        itemBuilder: (context, index) {
-          final item = items[index];
-          final isSelected = _selectedItems.contains('${item.id}:${item.mediaType.name}');
+          // Map indices to _currentItems to handle filtering correctly
+          final oldPersistentIndex = _currentItems.indexOf(item);
+          _currentItems.removeAt(oldPersistentIndex);
 
-          return ReorderableDelayedDragStartListener(
-            key: ValueKey('${item.id}_${item.mediaType.name}'),
-            index: index,
-            child: _MediaGridItem(
-              item: item,
-              provider: provider,
-              isSelected: isSelected,
-              isEditMode: _isEditMode,
-              onTap: () {
-                if (_isEditMode) {
-                  _toggleItemSelection(item);
-                } else {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => MediaDetailPage(item: item)));
-                }
-              },
-              onLongPress: _isEditMode ? null : () {
-                setState(() {
-                  _isEditMode = true;
-                  _selectedItems.add('${item.id}:${item.mediaType.name}');
-                });
-              },
-            ),
-          );
-        },
-      ),
+          if (newIndex < items.length - 1) {
+             final nextItemInFiltered = items[newIndex + 1];
+             final nextPersistentIndex = _currentItems.indexOf(nextItemInFiltered);
+             _currentItems.insert(nextPersistentIndex, item);
+          } else {
+             _currentItems.add(item);
+          }
+        });
+
+        final orderedEntries = _currentItems.map((e) => '${e.id}:${e.mediaType.name}').toList();
+        await provider.updateListOrder(_selectedList, orderedEntries);
+      },
+      itemBuilder: (context, index) {
+        final item = items[index];
+        final isSelected = _selectedItems.contains('${item.id}:${item.mediaType.name}');
+
+        return ReorderableDelayedDragStartListener(
+          key: ValueKey('${item.id}_${item.mediaType.name}'),
+          index: index,
+          child: _MediaGridItem(
+            item: item,
+            provider: provider,
+            isSelected: isSelected,
+            isEditMode: _isEditMode,
+            onTap: () {
+              if (_isEditMode) {
+                _toggleItemSelection(item);
+              } else {
+                Navigator.push(context, MaterialPageRoute(builder: (context) => MediaDetailPage(item: item)));
+              }
+            },
+            onLongPress: _isEditMode ? null : () {
+              setState(() {
+                _isEditMode = true;
+                _selectedItems.add('${item.id}:${item.mediaType.name}');
+              });
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -854,6 +855,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
     showModalBottomSheet(
       context: context,
       builder: (context) {
+        final colors = context.appColors;
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -868,15 +870,15 @@ class SavedMediaPageState extends State<SavedMediaPage> {
                     final name = provider.listNames[index];
                     final previews = provider.getPreviewsForList(name);
                     final count = provider.getListItemCount(name);
-                    
+
                     return ListTile(
                       leading: _buildListPreviewIcon(previews, provider),
                       title: Text(name == 'watchlist' ? 'Watchlist' : name),
                       subtitle: Text('$count items'),
                       selected: name == _selectedList,
-                      trailing: (name != 'watchlist') 
+                      trailing: (name != 'watchlist')
                         ? IconButton(
-                            icon: const Icon(Icons.delete_outline, color: Colors.red),
+                            icon: Icon(Icons.delete_outline, color: colors.error),
                             onPressed: () {
                               Navigator.pop(context);
                               _showDeleteListConfirm(context, provider, name);
@@ -909,8 +911,9 @@ class SavedMediaPageState extends State<SavedMediaPage> {
   }
 
   Widget _buildListPreviewIcon(List<MediaItemPreview> previews, SearchProvider provider) {
+    final colors = context.appColors;
     if (previews.isEmpty) {
-      return Container(width: 40, height: 40, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(4)), child: const Icon(Icons.movie_outlined, size: 20));
+      return Container(width: 40, height: 40, decoration: BoxDecoration(color: colors.placeholder, borderRadius: BorderRadius.circular(4)), child: const Icon(Icons.movie_outlined, size: 20));
     }
     if (previews.length == 1) {
        return ClipRRect(
@@ -925,8 +928,8 @@ class SavedMediaPageState extends State<SavedMediaPage> {
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 1, mainAxisSpacing: 1),
         itemCount: 4,
         itemBuilder: (context, index) {
-          if (index >= previews.length || previews[index].posterPath == null) return Container(color: Colors.grey[200]);
-          return CachedNetworkImage(imageUrl: 'https://image.tmdb.org/t/p/w92${previews[index].posterPath}', fit: BoxFit.cover, errorWidget: (context, url, error) => Container(color: Colors.grey));
+          if (index >= previews.length || previews[index].posterPath == null) return Container(color: colors.placeholder);
+          return CachedNetworkImage(imageUrl: 'https://image.tmdb.org/t/p/w92${previews[index].posterPath}', fit: BoxFit.cover, errorWidget: (context, url, error) => Container(color: colors.placeholder));
         },
       ),
     );
@@ -958,6 +961,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
   }
 
   void _showDeleteListConfirm(BuildContext context, SearchProvider provider, String listName) {
+     final colors = context.appColors;
      showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -974,7 +978,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
               if (context.mounted) Navigator.pop(context);
               loadSavedMedia();
             },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: Text('Delete', style: TextStyle(color: colors.error)),
           ),
         ],
       ),
@@ -993,10 +997,10 @@ class _MediaListTile extends StatelessWidget {
   final VoidCallback onLongPress;
 
   const _MediaListTile({
-    super.key, 
-    required this.index, 
-    required this.item, 
-    required this.provider, 
+    super.key,
+    required this.index,
+    required this.item,
+    required this.provider,
     required this.settings,
     required this.isEditMode,
     required this.isSelected,
@@ -1008,7 +1012,7 @@ class _MediaListTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isTv = item.mediaType == MediaType.tv;
     final isLiked = provider.isLiked(item);
-    
+
     String lengthText = '';
     if (isTv) {
       lengthText = '${item.numberOfSeasons ?? "?"} seasons';
@@ -1016,21 +1020,23 @@ class _MediaListTile extends StatelessWidget {
       lengthText = '${item.runtime} min';
     }
 
+    final colors = context.appColors;
+
     return InkWell(
       onTap: onTap,
       onLongPress: onLongPress,
       child: Container(
-        color: isSelected ? Colors.deepPurple.withValues(alpha: 0.1) : null,
+        color: isSelected ? colors.logicFlow.withValues(alpha: 0.1) : null,
         child: ListTile(
           leading: _PosterWithBadge(item: item, provider: provider),
           title: Row(
             children: [
               Expanded(child: Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis)),
-              if (isLiked) const Icon(Icons.favorite, size: 16, color: Colors.red),
+              if (isLiked) Icon(Icons.favorite, size: 16, color: colors.likeHeart),
             ],
           ),
           subtitle: Text('${item.releaseDate} • $lengthText'),
-          trailing: isEditMode 
+          trailing: isEditMode
             ? Checkbox(value: isSelected, onChanged: (_) => onTap())
             : ReorderableDragStartListener(
                 index: index,
@@ -1061,11 +1067,12 @@ class _MediaGridItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
     return InkWell(
       onTap: onTap,
       onLongPress: onLongPress,
       child: Stack(
-        clipBehavior: Clip.none, 
+        clipBehavior: Clip.none,
         children: [
           _PosterWithBadge(item: item, provider: provider, width: double.infinity, height: double.infinity, showBadge: false),
           if (isSelected)
@@ -1073,21 +1080,21 @@ class _MediaGridItem extends StatelessWidget {
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.deepPurple, width: 3),
+                  border: Border.all(color: colors.logicFlow, width: 3),
                 ),
               ),
             ),
           _PosterBadgeOnly(item: item, provider: provider),
           if (isEditMode)
             Positioned(
-              top: 6, // Moved more into view
-              left: 6, // Moved more into view
+              top: 6,
+              left: 6,
               child: Container(
-                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                decoration: BoxDecoration(color: Theme.of(context).cardColor, shape: BoxShape.circle),
                 padding: const EdgeInsets.all(1),
                 child: Icon(
                   isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
-                  color: isSelected ? Colors.deepPurple : Colors.grey,
+                  color: isSelected ? colors.logicFlow : colors.placeholder,
                   size: 20,
                 ),
               ),
@@ -1108,25 +1115,37 @@ class _MediaSwipeItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(32.0),
-      child: InkWell(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MediaDetailPage(item: item))),
-        child: Card(
-          elevation: 8,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Column(
-            children: [
-              Expanded(
+      child: Card(
+        elevation: 8,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Column(
+          children: [
+            Expanded(
+              child: InkWell(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MediaDetailPage(item: item))),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0), 
+                  padding: const EdgeInsets.all(16.0),
                   child: _PosterWithBadge(item: item, provider: provider, width: double.infinity, height: double.infinity),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(item.title, style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center, maxLines: 2),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Row(
+                children: [
+                  const SizedBox(width: 56), // Balances the larger LikeButton
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MediaDetailPage(item: item))),
+                      child: Text(item.title, style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center, maxLines: 2),
+                    ),
+                  ),
+                  LikeButton(item: item, iconSize: 32),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -1147,9 +1166,10 @@ class _PosterWithBadge extends StatelessWidget {
     final seenCount = provider.getSeenCount(item);
     final isSeen = seenCount > 0;
     final isTv = item.mediaType == MediaType.tv;
-    
+    final colors = context.appColors;
+
       return Stack(
-      clipBehavior: Clip.none, 
+      clipBehavior: Clip.none,
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(8),
@@ -1163,7 +1183,7 @@ class _PosterWithBadge extends StatelessWidget {
                 errorWidget: (context, url, error) => Icon(isTv ? Icons.tv : Icons.movie, size: width),
               )
             : Container(
-                width: width, height: height, color: Colors.grey[200],
+                width: width, height: height, color: colors.placeholder,
                 child: Icon(isTv ? Icons.tv : Icons.movie, size: width != null ? width! / 2 : 24),
               ),
         ),
@@ -1191,12 +1211,14 @@ class _PosterBadgeOnly extends StatelessWidget {
         ? seenCount >= item.numberOfEpisodes!
         : !isTv;
 
+    final colors = context.appColors;
+
     return Positioned(
       right: -4,
       bottom: -4,
       child: Container(
         decoration: BoxDecoration(
-          color: isFinished ? Colors.blue : Colors.green,
+          color: isFinished ? colors.badgeBgSeen : colors.badgeBg,
           shape: BoxShape.circle,
           border: Border.all(color: Colors.white, width: 1.5),
         ),
@@ -1204,151 +1226,8 @@ class _PosterBadgeOnly extends StatelessWidget {
         child: Icon(
           isFinished ? Icons.done_all : Icons.check,
           size: 10,
-          color: Colors.white,
+          color: colors.badgeText,
         ),
-      ),
-    );
-  }
-
-  void _showListPicker(BuildContext context, SearchProvider provider) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(padding: const EdgeInsets.all(16.0), child: Text('Switch List', style: Theme.of(context).textTheme.titleLarge)),
-              const Divider(height: 1),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: provider.listNames.length,
-                  itemBuilder: (context, index) {
-                    final name = provider.listNames[index];
-                    final previews = provider.getPreviewsForList(name);
-                    
-                    return ListTile(
-                      leading: _buildListPreviewIcon(previews, provider),
-                      title: Text(name == 'watchlist' ? 'Watchlist' : name),
-                      subtitle: Text('${provider.getPreviewsForList(name).length} items'),
-                      selected: name == _selectedList,
-                      trailing: name == _selectedList ? const Icon(Icons.check) : null,
-                      onTap: () {
-                        setState(() {
-                          _selectedList = name;
-                        });
-                        loadSavedMedia();
-                        Navigator.pop(context);
-                      },
-                    );
-                  },
-                ),
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.add),
-                title: const Text('Create New List'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showCreateListDialog(context, provider);
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildListPreviewIcon(List<MediaItemPreview> previews, SearchProvider provider) {
-    if (previews.isEmpty) {
-      return Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(4)),
-        child: const Icon(Icons.movie_outlined, size: 20),
-      );
-    }
-    if (previews.length == 1) {
-       return ClipRRect(
-        borderRadius: BorderRadius.circular(4),
-        child: CachedNetworkImage(
-          imageUrl: 'https://image.tmdb.org/t/p/w92${previews[0].posterPath}',
-          width: 40, height: 40, fit: BoxFit.cover,
-          errorWidget: (context, url, error) {
-            provider.notifyNetworkError();
-            return const Icon(Icons.movie);
-          },
-        ),
-      );
-    }
-    return SizedBox(
-      width: 40, height: 40,
-      child: GridView.builder(
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 1, mainAxisSpacing: 1),
-        itemCount: 4,
-        itemBuilder: (context, index) {
-          if (index >= previews.length || previews[index].posterPath == null) return Container(color: Colors.grey[200]);
-          return CachedNetworkImage(
-            imageUrl: 'https://image.tmdb.org/t/p/w92${previews[index].posterPath}',
-            fit: BoxFit.cover, 
-            errorWidget: (context, url, error) {
-              provider.notifyNetworkError();
-              return Container(color: Colors.grey);
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  void _showCreateListDialog(BuildContext context, SearchProvider provider) {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('New List'),
-        content: TextField(controller: controller, decoration: const InputDecoration(hintText: 'List name'), autofocus: true),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () async {
-              if (controller.text.isNotEmpty) {
-                final newName = controller.text;
-                await provider.createList(newName);
-                setState(() { _selectedList = newName; });
-                loadSavedMedia();
-                if (context.mounted) Navigator.pop(context);
-              }
-            },
-            child: const Text('Create'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showDeleteListConfirm(BuildContext context, SearchProvider provider) {
-     showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete List'),
-        content: Text('Are you sure you want to delete "$_selectedList"? This will also remove all items from this list.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () async {
-              final toDelete = _selectedList;
-              setState(() { _selectedList = 'watchlist'; });
-              await provider.deleteList(toDelete);
-              if (context.mounted) Navigator.pop(context);
-              loadSavedMedia();
-            },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
       ),
     );
   }

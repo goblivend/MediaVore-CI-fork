@@ -7,6 +7,7 @@ import 'package:mediavore/core/domain/entities/seen_item.dart';
 import 'package:mediavore/features/media_details/presentation/pages/media_detail_page.dart';
 import 'package:mediavore/features/search/presentation/providers/search_provider.dart';
 import 'package:mediavore/features/settings/presentation/pages/settings_page.dart';
+import 'package:mediavore/features/settings/presentation/providers/settings_provider.dart';
 import 'package:provider/provider.dart';
 
 class SeenHistoryPage extends StatefulWidget {
@@ -78,6 +79,12 @@ class SeenHistoryPageState extends State<SeenHistoryPage> {
     final seenItems = provider.seenItems;
     final groupedItems = _groupItems(seenItems);
 
+
+    final settings = context.watch<SettingsProvider>();
+    final palette = Theme.of(context).brightness == Brightness.dark
+        ? settings.darkPalette
+        : settings.lightPalette;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Seen History'),
@@ -123,7 +130,7 @@ class SeenHistoryPageState extends State<SeenHistoryPage> {
                 final seenItem = item as SeenItem;
                 final isTv = seenItem.type == MediaType.tv;
                 final isLiked = provider.likedIds.contains('${seenItem.tmdbId}:${seenItem.type.name}');
-                
+
                 String subtitle = '';
                 if (isTv && seenItem.seasonNumber != null) {
                   subtitle = 'S${seenItem.seasonNumber} E${seenItem.episodeNumber}';
@@ -169,9 +176,9 @@ class SeenHistoryPageState extends State<SeenHistoryPage> {
                       children: [
                         Flexible(child: Text(seenItem.title, maxLines: 1, overflow: TextOverflow.ellipsis)),
                         if (isLiked)
-                          const Padding(
+                          Padding(
                             padding: EdgeInsets.only(left: 4.0),
-                            child: Icon(Icons.favorite, size: 16, color: Colors.red),
+                            child: Icon(Icons.favorite, size: 16, color: palette.likeHeart),
                           ),
                       ],
                     ),

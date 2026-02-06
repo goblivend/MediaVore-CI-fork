@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:mediavore/core/theme/app_palette.dart';
 import 'package:mediavore/features/search/presentation/providers/search_provider.dart';
 import 'package:mediavore/features/search/domain/repositories/media_repository.dart';
 import 'package:path_provider/path_provider.dart';
@@ -19,6 +20,7 @@ class DataCacheSettingsPage extends StatelessWidget {
     final provider = context.watch<SearchProvider>();
     final isCacheLoading = provider.isCacheLoading;
     final isDbSizeLoading = provider.isDbSizeLoading;
+    final colors = context.appColors;
 
     return Scaffold(
       appBar: AppBar(
@@ -32,7 +34,7 @@ class DataCacheSettingsPage extends StatelessWidget {
               ListTile(
                 title: const Text('Cache Size'),
                 subtitle: Text(_formatBytes(provider.cacheSize)),
-                trailing: isCacheLoading 
+                trailing: isCacheLoading
                   ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
                   : IconButton(
                       icon: const Icon(Icons.refresh),
@@ -60,8 +62,8 @@ class DataCacheSettingsPage extends StatelessWidget {
                 onTap: () => provider.fillCache(),
               ),
               ListTile(
-                leading: const Icon(Icons.delete_forever, color: Colors.red),
-                title: const Text('Wipe All Cache', style: TextStyle(color: Colors.red)),
+                leading: Icon(Icons.delete_forever, color: colors.error),
+                title: Text('Wipe All Cache', style: TextStyle(color: colors.error)),
                 subtitle: const Text('Delete everything from cache.'),
                 enabled: !isCacheLoading,
                 onTap: () => _confirmAction(
@@ -76,7 +78,7 @@ class DataCacheSettingsPage extends StatelessWidget {
               ListTile(
                 title: const Text('Seen Database Size'),
                 subtitle: Text(_formatBytes(provider.seenDbSize)),
-                trailing: isDbSizeLoading 
+                trailing: isDbSizeLoading
                   ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
                   : IconButton(
                       icon: const Icon(Icons.refresh),
@@ -99,7 +101,7 @@ class DataCacheSettingsPage extends StatelessWidget {
           ),
           if (isCacheLoading || isDbSizeLoading)
             Container(
-              color: Colors.black12,
+              color: colors.placeholder.withValues(alpha: 0.1),
               child: const Center(
                 child: Card(
                   child: Padding(
@@ -167,14 +169,14 @@ class DataCacheSettingsPage extends StatelessWidget {
   }
 
   Future<void> _exportSeenData(
-    BuildContext context, 
+    BuildContext context,
     SearchProvider provider, {
-    DateTime? start, 
+    DateTime? start,
     DateTime? end,
   }) async {
     try {
       final data = await provider.exportSeenData(start: start, end: end);
-      
+
       if (data.isEmpty) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -185,7 +187,7 @@ class DataCacheSettingsPage extends StatelessWidget {
       }
 
       final jsonString = jsonEncode(data);
-      
+
       final tempDir = await getTemporaryDirectory();
       String suffix = '';
       if (start != null && end != null) {
@@ -218,7 +220,7 @@ class DataCacheSettingsPage extends StatelessWidget {
                   onTap: () async {
                     Navigator.pop(saveSheetContext);
                     await Share.shareXFiles(
-                      [XFile(tempFile.path, mimeType: 'application/json')], 
+                      [XFile(tempFile.path, mimeType: 'application/json')],
                       text: 'My MediaVore Seen History'
                     );
                   },
@@ -240,7 +242,7 @@ class DataCacheSettingsPage extends StatelessWidget {
   Future<void> _saveFileToDevice(BuildContext context, String jsonString, String fileName) async {
     try {
       final bytes = utf8.encode(jsonString);
-      
+
       final result = await FilePicker.platform.saveFile(
         dialogTitle: 'Save Seen History',
         fileName: fileName,
@@ -272,7 +274,8 @@ class DataCacheSettingsPage extends StatelessWidget {
     if (result != null && result.files.single.path != null) {
       final file = File(result.files.single.path!);
       final content = await file.readAsString();
-      
+      final colors = context.appColors;
+
       try {
         final List<dynamic> data = jsonDecode(content);
         final List<Map<String, dynamic>> seenData = data.cast<Map<String, dynamic>>();
@@ -325,7 +328,7 @@ class DataCacheSettingsPage extends StatelessWidget {
                       }
                     }
                   },
-                  child: const Text('Replace', style: TextStyle(color: Colors.red)),
+                  child: Text('Replace', style: TextStyle(color: colors.error)),
                 ),
               ],
             ),
@@ -334,7 +337,7 @@ class DataCacheSettingsPage extends StatelessWidget {
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Import failed: Invalid file format')),
+            const SnackBar(content: Text('Import failed: Invalid file format')),
           );
         }
       }
@@ -342,6 +345,7 @@ class DataCacheSettingsPage extends StatelessWidget {
   }
 
   Future<bool> _confirmReplace(BuildContext context) async {
+    final colors = context.appColors;
     return await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -354,7 +358,7 @@ class DataCacheSettingsPage extends StatelessWidget {
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Yes, Replace Everything', style: TextStyle(color: Colors.red)),
+            child: Text('Yes, Replace Everything', style: TextStyle(color: colors.error)),
           ),
         ],
       ),
@@ -380,7 +384,7 @@ class DataCacheSettingsPage extends StatelessWidget {
           TextButton(
             onPressed: () {
               action();
-              Navigator.pop(dialogContext); // Fixed: Pop dialogContext instead of context
+              Navigator.pop(dialogContext);
             },
             child: const Text('Proceed'),
           ),
@@ -401,7 +405,7 @@ class _SectionHeader extends StatelessWidget {
       child: Text(
         title,
         style: TextStyle(
-          color: Theme.of(context).primaryColor,
+          color: Theme.of(context).colorScheme.primary,
           fontWeight: FontWeight.bold,
         ),
       ),
