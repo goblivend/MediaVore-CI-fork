@@ -1,12 +1,9 @@
 import 'dart:convert';
-import 'dart:convert';
 import 'dart:io';
-import 'package:file_picker/file_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:mediavore/core/domain/entities/media_item.dart';
 import 'package:mediavore/core/domain/entities/media_details.dart';
-import 'package:mediavore/core/domain/entities/seen_item.dart';
 import 'package:mediavore/core/domain/entities/seen_item.dart';
 import 'package:mediavore/core/utils/formatters.dart';
 import 'package:mediavore/core/theme/app_palette.dart';
@@ -29,8 +26,8 @@ class MediaDetailPage extends StatefulWidget {
   final ScrollController? scrollController;
 
   const MediaDetailPage({
-    super.key,
-    required this.item,
+    super.key, 
+    required this.item, 
     this.isSheet = false,
     this.scrollController,
   });
@@ -53,8 +50,8 @@ class MediaDetailPage extends StatefulWidget {
           ),
           clipBehavior: Clip.antiAliasWithSaveLayer,
           child: MediaDetailPage(
-            item: item,
-            isSheet: true,
+            item: item, 
+            isSheet: true, 
             scrollController: scrollController,
           ),
         ),
@@ -77,7 +74,6 @@ class _SearchIconText extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: context.appColors.comments),
         Icon(icon, size: 16, color: context.appColors.comments),
         const SizedBox(width: 4),
         Text(text, style: Theme.of(context).textTheme.bodySmall),
@@ -112,18 +108,13 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
     try {
       final provider = context.read<SearchProvider>();
       final details = await provider.getMediaDetails(
-      final provider = context.read<SearchProvider>();
-      final details = await provider.getMediaDetails(
         widget.item.id,
-        widget.item.mediaType,
         widget.item.mediaType,
       );
       if (mounted) {
         setState(() {
           _mediaDetails = details;
-          _mediaDetails = details;
           _isLoading = false;
-          _isOffline = false;
           _isOffline = false;
         });
       }
@@ -131,7 +122,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _isOffline = e.toString().contains('SocketException') ||
+          _isOffline = e.toString().contains('SocketException') || 
                        e.toString().contains('Network error') ||
                        e.toString().contains('connectionError');
         });
@@ -190,7 +181,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
       tmdbId: widget.item.id,
       type: widget.item.mediaType,
     );
-
+    
     if (data.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -271,7 +262,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
       provider.setFilters(genreIds: [genreId], type: widget.item.mediaType);
       provider.searchMedia('');
       provider.setSelectedTab(0); // Switch to Discover tab
-
+      
       if (widget.isSheet) {
         Navigator.of(context).pop();
       } else {
@@ -284,14 +275,8 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
   Widget build(BuildContext context) {
     final itemToDisplay = _mediaDetails?.item ?? widget.item;
     final colors = context.appColors;
-
+    
     final String directorLabel = itemToDisplay.mediaType == MediaType.tv ? 'Creator' : 'Director';
-
-    final int uniqueEpisodesSeenTotal = _seenStatus
-        .where((s) => s.seasonNumber != null && s.episodeNumber != null)
-        .map((s) => '${s.seasonNumber}:${s.episodeNumber}')
-        .toSet()
-        .length;
 
     final int uniqueEpisodesSeenTotal = _seenStatus
         .where((s) => s.seasonNumber != null && s.episodeNumber != null)
@@ -306,7 +291,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
           SliverAppBar(
             expandedHeight: widget.isSheet ? 300 : 400,
             pinned: true,
-            leading: widget.isSheet
+            leading: widget.isSheet 
                 ? IconButton(icon: const Icon(Icons.keyboard_arrow_down), onPressed: () => Navigator.pop(context))
                 : null,
             title: Text(itemToDisplay.title),
@@ -393,14 +378,14 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
                       ],
                     ),
                     const SizedBox(height: 8),
-
+                    
                     _buildWatchProviders(),
                     const SizedBox(height: 8),
 
                     if (itemToDisplay.mediaType == MediaType.tv && itemToDisplay.numberOfEpisodes != null) ...[
                       LinearProgressIndicator(
-                        value: itemToDisplay.numberOfEpisodes! > 0
-                            ? uniqueEpisodesSeenTotal / itemToDisplay.numberOfEpisodes!
+                        value: itemToDisplay.numberOfEpisodes! > 0 
+                            ? uniqueEpisodesSeenTotal / itemToDisplay.numberOfEpisodes! 
                             : 0,
                         backgroundColor: colors.placeholder,
                         color: colors.onWatchlist,
@@ -417,7 +402,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
                       WatchNextButton(
                         item: itemToDisplay,
                       ),
-
+                    
                     if (_isOffline)
                       Container(
                         padding: const EdgeInsets.symmetric(vertical: 16),
@@ -472,9 +457,9 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
                           )).toList(),
                         ),
                       const SizedBox(height: 8),
-
+                      
                       _buildTrailers(),
-
+                      
                       if (_mediaDetails?.director != null)
                         Text(
                           '$directorLabel: ${_mediaDetails!.director!.name}',
@@ -491,7 +476,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ],
-
+                    
                     if (itemToDisplay.mediaType == MediaType.tv && itemToDisplay.seasons != null) ...[
                       const SizedBox(height: 24),
                       const Text(
@@ -533,7 +518,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     if (isComplete) Icon(Icons.check_circle, color: colors.onWatchlist),
-                                    isLoading
+                                    isLoading 
                                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                                       : Icon(isExpanded ? Icons.expand_less : Icons.expand_more),
                                   ],
@@ -631,7 +616,7 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
                           },
                         ),
                       ),
-
+                      
                       _buildHorizontalList('Similar', _mediaDetails!.similar),
                       _buildHorizontalList('Recommendations', _mediaDetails!.recommendations),
                     ],
@@ -652,13 +637,13 @@ class _MediaDetailPageState extends State<MediaDetailPage> {
 
   Widget _buildWatchProviders() {
     if (_mediaDetails?.watchProviders == null) return const SizedBox.shrink();
-
+    
     final results = _mediaDetails!.watchProviders!;
     if (results.isEmpty) return const SizedBox.shrink();
 
     final countryCode = results.containsKey('US') ? 'US' : results.keys.first;
     final countryData = results[countryCode] as Map<String, dynamic>;
-
+    
     final List<dynamic>? flatrate = countryData['flatrate'];
     if (flatrate == null || flatrate.isEmpty) return const SizedBox.shrink();
 
