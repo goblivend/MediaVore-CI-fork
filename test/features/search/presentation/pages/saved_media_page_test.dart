@@ -36,6 +36,9 @@ void main() {
     when(() => mockMediaRepository.getListEntries(any())).thenAnswer((_) async => []);
     when(() => mockMediaRepository.getAllListNames()).thenAnswer((_) async => ['watchlist']);
     when(() => mockMediaRepository.getListPreviews(any())).thenAnswer((_) async => []);
+    when(() => mockMediaRepository.getListPreviews(any(), limit: any(named: 'limit'))).thenAnswer((_) async => []);
+    when(() => mockMediaRepository.getSeenItems()).thenAnswer((_) async => []);
+    when(() => mockMediaRepository.getSeenStatus(any(), any())).thenAnswer((_) async => []);
   });
 
   tearDown(() {
@@ -90,7 +93,6 @@ void main() {
       cast: [],
     ));
     when(() => mockMediaRepository.removeFromList(any(), any(), any())).thenAnswer((_) async {});
-    when(() => mockMediaRepository.getListPreviews(any())).thenAnswer((_) async => []);
 
     await tester.pumpWidget(createWidgetUnderTest());
     await searchProvider.loadLists();
@@ -107,7 +109,6 @@ void main() {
     when(() => mockMediaRepository.getAllListNames()).thenAnswer((_) async => ['watchlist', 'Favorites']);
     when(() => mockMediaRepository.getListEntries('Favorites')).thenAnswer((_) async => []);
     when(() => mockMediaRepository.getListEntries('watchlist')).thenAnswer((_) async => []);
-    when(() => mockMediaRepository.getListPreviews(any())).thenAnswer((_) async => []);
 
     await tester.pumpWidget(createWidgetUnderTest());
     await searchProvider.loadLists();
