@@ -3,15 +3,33 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'dart:async';
+import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:mediavore/core/di/injection.dart';
 import 'package:mediavore/core/domain/entities/media_item.dart';
 import 'package:mediavore/core/theme/app_palette.dart';
+import 'package:mediavore/core/theme/app_palette.dart';
 import 'package:mediavore/features/media_details/presentation/pages/media_detail_page.dart';
 import 'package:mediavore/features/media_details/presentation/widgets/like_button.dart';
+import 'package:mediavore/features/media_details/presentation/widgets/like_button.dart';
 import 'package:mediavore/features/search/domain/repositories/media_repository.dart';
+import 'package:mediavore/features/search/presentation/providers/search_provider.dart';
+import 'package:mediavore/features/settings/presentation/pages/settings_page.dart';
+import 'package:mediavore/features/settings/presentation/providers/settings_provider.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:reorderable_grid_view/reorderable_grid_view.dart';
 import 'package:mediavore/features/search/presentation/providers/search_provider.dart';
 import 'package:mediavore/features/settings/presentation/pages/settings_page.dart';
 import 'package:mediavore/features/settings/presentation/providers/settings_provider.dart';
@@ -27,12 +45,17 @@ class SavedMediaPage extends StatefulWidget {
 
   @override
   State<SavedMediaPage> createState() => SavedMediaPageState();
+  State<SavedMediaPage> createState() => SavedMediaPageState();
 }
 
 enum SortMethod { manual, releaseDate, shuffle }
 
 class SavedMediaPageState extends State<SavedMediaPage> {
+enum SortMethod { manual, releaseDate, shuffle }
+
+class SavedMediaPageState extends State<SavedMediaPage> {
   late final MediaRepository _mediaRepository;
+  String _selectedList = 'watchlist';
   String _selectedList = 'watchlist';
   Future<List<MediaItem>>? _savedMediaFuture;
   bool _isRefreshing = false;
@@ -41,6 +64,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
   List<MediaItem> _currentItems = [];
   final GlobalKey _qrKey = GlobalKey();
   Uint8List? _croppedLogoBytes;
+  Color? _lastThemeColor;
 
   // Edit Mode State
   bool _isEditMode = false;
@@ -50,7 +74,6 @@ class SavedMediaPageState extends State<SavedMediaPage> {
   void initState() {
     super.initState();
     _mediaRepository = locator<MediaRepository>();
-    _prepareCroppedLogo();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         context.read<SearchProvider>().loadLists();
@@ -59,8 +82,18 @@ class SavedMediaPageState extends State<SavedMediaPage> {
     });
   }
 
-  /// Programmatically crops the white space from the app icon to make the logo
-  /// appear larger in the QR code.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final newColor = context.appColors.logicFlow;
+    if (_lastThemeColor != newColor) {
+      _lastThemeColor = newColor;
+      _prepareCroppedLogo();
+    }
+  }
+
+  /// Programmatically crops the white space from the app icon and applies theme colors
+  /// to create a branded logo for the QR code.
   Future<void> _prepareCroppedLogo() async {
     try {
       final data = await rootBundle.load('assets/icon/app_icon.png');
@@ -75,7 +108,27 @@ class SavedMediaPageState extends State<SavedMediaPage> {
 
       final recorder = ui.PictureRecorder();
       final canvas = ui.Canvas(recorder);
+      final center = Offset(cropSize / 2, cropSize / 2);
+      final radius = cropSize / 2;
 
+      // 1. Draw theme-colored background circle
+      canvas.drawCircle(
+        center,
+        radius,
+        ui.Paint()..color = _lastThemeColor ?? Colors.blue,
+      );
+
+      // 2. Draw white border for contrast against QR modules
+      canvas.drawCircle(
+        center,
+        radius,
+        ui.Paint()
+          ..color = Colors.white
+          ..style = ui.PaintingStyle.stroke
+          ..strokeWidth = cropSize * 0.08,
+      );
+
+      // 3. Draw the cropped logo
       canvas.drawImageRect(
         fullImage,
         Rect.fromLTWH(offset, offset, cropSize, cropSize),
@@ -119,7 +172,25 @@ class SavedMediaPageState extends State<SavedMediaPage> {
     }
   }
 
+  void resetToDefault() {
+    if (_selectedList != 'watchlist') {
+      setState(() {
+        _selectedList = 'watchlist';
+        _isEditMode = false;
+        _selectedItems.clear();
+      });
+      loadSavedMedia();
+    }
+  }
+
   Future<List<MediaItem>> _fetchSavedMedia() async {
+    final provider = context.read<SearchProvider>();
+    final entries = await _mediaRepository.getListEntries(_selectedList);
+    final localItems = await _mediaRepository.getListPreviews(_selectedList, limit: 1000);
+
+    List<MediaItem> items;
+    if (provider.isOffline) {
+      items = entries.map((entry) {
     final provider = context.read<SearchProvider>();
     final entries = await _mediaRepository.getListEntries(_selectedList);
     final localItems = await _mediaRepository.getListPreviews(_selectedList, limit: 1000);
@@ -182,6 +253,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
       provider.loadAllSeenStatus();
     }
     _currentItems = items;
+    _currentItems = items;
     return items;
   }
 
@@ -228,6 +300,68 @@ class SavedMediaPageState extends State<SavedMediaPage> {
     }
 
     return result;
+  }
+
+  void _showDisplayModePicker() {
+    final settings = context.read<SettingsProvider>();
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Display Options', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const SizedBox(height: 16),
+                ToggleButtons(
+                  isSelected: [
+                    settings.displayMode == DisplayMode.list,
+                    settings.displayMode == DisplayMode.grid,
+                    settings.displayMode == DisplayMode.swipe,
+                  ],
+                  onPressed: (index) {
+                    settings.setDisplayMode(DisplayMode.values[index]);
+                    setSheetState(() {});
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  children: const [
+                    Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Icon(Icons.list)),
+                    Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Icon(Icons.grid_view)),
+                    Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: Icon(Icons.view_carousel)),
+                  ],
+                ),
+                if (settings.displayMode == DisplayMode.grid) ...[
+                  const SizedBox(height: 24),
+                  const Text('Grid Size', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Row(
+                    children: [
+                      const Icon(Icons.grid_view, size: 20),
+                      Expanded(
+                        child: Slider(
+                          value: settings.gridSize,
+                          min: 2,
+                          max: 5,
+                          divisions: 3,
+                          label: settings.gridSize.round().toString(),
+                          onChanged: (v) {
+                            settings.setGridSize(v);
+                            setSheetState(() {});
+                          },
+                        ),
+                      ),
+                      Text(settings.gridSize.round().toString(), style: const TextStyle(fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _showShareAndImportOptions(SearchProvider provider, SettingsProvider settings) {
@@ -301,6 +435,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error sharing QR code: $e')),
+          SnackBar(content: Text('Error sharing QR code: $e')),
         );
       }
     }
@@ -312,11 +447,13 @@ class SavedMediaPageState extends State<SavedMediaPage> {
     final visibleItems = _getFilteredAndSortedItems(_currentItems, settings);
     final previewPosters = visibleItems.where((i) => i.posterPath != null).take(3).toList();
     final colors = context.appColors;
+    final theme = Theme.of(context);
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Share $_selectedList'),
+        backgroundColor: theme.colorScheme.surface,
+        title: Text('Share $_selectedList', style: TextStyle(color: theme.colorScheme.onSurface)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -324,14 +461,15 @@ class SavedMediaPageState extends State<SavedMediaPage> {
               key: _qrKey,
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: theme.colorScheme.surface,
                   borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: colors.logicFlow.withValues(alpha: 0.2), width: 1),
                 ),
                 padding: const EdgeInsets.all(24),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(_selectedList, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 20)),
+                    Text(_selectedList, style: TextStyle(color: theme.colorScheme.onSurface, fontWeight: FontWeight.bold, fontSize: 20)),
                     const SizedBox(height: 12),
                     SizedBox(
                       width: 250,
@@ -340,14 +478,14 @@ class SavedMediaPageState extends State<SavedMediaPage> {
                         data: link,
                         version: QrVersions.auto,
                         size: 250.0,
-                        backgroundColor: Colors.white,
+                        backgroundColor: Colors.transparent,
                         eyeStyle: QrEyeStyle(
                           eyeShape: QrEyeShape.circle,
                           color: colors.logicFlow,
                         ),
-                        dataModuleStyle: const QrDataModuleStyle(
+                        dataModuleStyle: QrDataModuleStyle(
                           dataModuleShape: QrDataModuleShape.circle,
-                          color: Colors.black,
+                          color: theme.colorScheme.onSurface,
                         ),
                         embeddedImage: _croppedLogoBytes != null ? MemoryImage(_croppedLogoBytes!) : null,
                         embeddedImageStyle: const QrEmbeddedImageStyle(
@@ -381,7 +519,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
               ),
             ),
             const SizedBox(height: 16),
-            const Text('Scan this with another phone to import the list.', textAlign: TextAlign.center),
+            Text('Scan this with another phone to import the list.', textAlign: TextAlign.center, style: TextStyle(color: theme.colorScheme.onSurface)),
           ],
         ),
         actions: [
@@ -671,6 +809,11 @@ class SavedMediaPageState extends State<SavedMediaPage> {
                   tooltip: 'Sharing & Importing',
                 ),
                 IconButton(
+                  icon: const Icon(Icons.grid_on),
+                  onPressed: _showDisplayModePicker,
+                  tooltip: 'Display Mode',
+                ),
+                IconButton(
                   icon: const Icon(Icons.sort),
                   onPressed: _showSortOptions,
                   tooltip: 'Sort Options',
@@ -760,7 +903,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
             if (_isEditMode) {
               _toggleItemSelection(item);
             } else {
-              Navigator.push(context, MaterialPageRoute(builder: (context) => MediaDetailPage(item: item)));
+              MediaDetailPage.show(context, item);
             }
           },
           onLongPress: () {
@@ -826,7 +969,7 @@ class SavedMediaPageState extends State<SavedMediaPage> {
               if (_isEditMode) {
                 _toggleItemSelection(item);
               } else {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => MediaDetailPage(item: item)));
+                MediaDetailPage.show(context, item);
               }
             },
             onLongPress: _isEditMode ? null : () {
@@ -1122,7 +1265,7 @@ class _MediaSwipeItem extends StatelessWidget {
           children: [
             Expanded(
               child: InkWell(
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MediaDetailPage(item: item))),
+                onTap: () => MediaDetailPage.show(context, item),
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -1137,7 +1280,7 @@ class _MediaSwipeItem extends StatelessWidget {
                   const SizedBox(width: 56), // Balances the larger LikeButton
                   Expanded(
                     child: InkWell(
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => MediaDetailPage(item: item))),
+                      onTap: () => MediaDetailPage.show(context, item),
                       child: Text(item.title, style: Theme.of(context).textTheme.headlineSmall, textAlign: TextAlign.center, maxLines: 2),
                     ),
                   ),

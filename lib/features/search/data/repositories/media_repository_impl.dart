@@ -1,12 +1,18 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
+import 'package:mediavore/core/cache/media_cache.dart';
 import 'package:mediavore/core/cache/media_cache.dart';
 import 'package:mediavore/core/domain/entities/actor_details.dart';
 import 'package:mediavore/core/domain/entities/cast_member.dart';
 import 'package:mediavore/core/domain/entities/crew_member.dart';
 import 'package:mediavore/core/domain/entities/media_item.dart';
 import 'package:mediavore/core/domain/entities/media_details.dart';
+import 'package:mediavore/core/domain/entities/seen_item.dart';
+import 'package:mediavore/features/media_details/data/datasources/media_list_local_data_source.dart';
+import 'package:mediavore/features/media_details/data/models/seen_item_model.dart';
 import 'package:mediavore/core/domain/entities/seen_item.dart';
 import 'package:mediavore/features/media_details/data/datasources/media_list_local_data_source.dart';
 import 'package:mediavore/features/media_details/data/models/seen_item_model.dart';
@@ -17,6 +23,9 @@ import 'package:mediavore/features/search/domain/repositories/media_repository.d
 @LazySingleton(as: MediaRepository)
 class MediaRepositoryImpl implements MediaRepository {
   final MediaRemoteDataSource remoteDataSource;
+  final MediaListLocalDataSource localDataSource;
+  final MediaCache cache;
+  final Completer<void> _initCompleter = Completer<void>();
   final MediaListLocalDataSource localDataSource;
   final MediaCache cache;
   final Completer<void> _initCompleter = Completer<void>();
@@ -125,16 +134,63 @@ class MediaRepositoryImpl implements MediaRepository {
   }
 
   @override
-  Future<List<MediaItem>> searchMedia(String query, {int page = 1}) async {
+  Future<List<MediaItem>> searchMedia(
+    String query, {
+    int page = 1,
+    List<int>? genreIds,
+    int? releaseYear,
+    double? minRating,
+    String? language,
+    MediaType? type,
+  }) async {
     await _ensureInitialized();
     try {
-      final results = await remoteDataSource.searchMedia(query, page: page);
+      final results = await remoteDataSource.searchMedia(
+        query,
+        page: page,
+        genreIds: genreIds,
+        releaseYear: releaseYear,
+        minRating: minRating,
+        language: language,
+        type: type,
+      );
       for (final item in results) {
         await cache.cacheItem(item);
       }
       return results;
     } catch (e) {
       debugPrint('[Repo] searchMedia error: $e');
+      return [];
+    }
+  }
+
+  @override
+  Future<List<MediaItem>> discoverMedia({
+    int page = 1,
+    List<int>? genreIds,
+    int? releaseYear,
+    double? minRating,
+    String? language,
+    MediaType type = MediaType.movie,
+    String sortBy = 'popularity.desc',
+  }) async {
+    await _ensureInitialized();
+    try {
+      final results = await remoteDataSource.discoverMedia(
+        page: page,
+        genreIds: genreIds,
+        releaseYear: releaseYear,
+        minRating: minRating,
+        language: language,
+        type: type,
+        sortBy: sortBy,
+      );
+      for (final item in results) {
+        await cache.cacheItem(item);
+      }
+      return results;
+    } catch (e) {
+      debugPrint('[Repo] discoverMedia error: $e');
       return [];
     }
   }
@@ -149,6 +205,10 @@ class MediaRepositoryImpl implements MediaRepository {
 
     final itemFuture = remoteDataSource.getMediaItem(id, type: type);
     final creditsFuture = remoteDataSource.getMediaCredits(id, type: type);
+    final similarFuture = remoteDataSource.getSimilarMedia(id, type);
+    final recommendationsFuture = remoteDataSource.getRecommendedMedia(id, type);
+    final watchProvidersFuture = remoteDataSource.getWatchProviders(id, type);
+    final videosFuture = remoteDataSource.getVideos(id, type);
 
     final item = await itemFuture;
 
@@ -170,10 +230,19 @@ class MediaRepositoryImpl implements MediaRepository {
           orElse: () => CrewMember(name: 'N/A', job: 'Director'),
         );
 
+    final List<MediaItem> similar = await similarFuture;
+    final List<MediaItem> recommendations = await recommendationsFuture;
+    final Map<String, dynamic> watchProviders = await watchProvidersFuture;
+    final List<Map<String, dynamic>> videos = await videosFuture;
+
     final details = MediaDetails(
       item: item,
       cast: cast,
       director: director,
+      similar: similar,
+      recommendations: recommendations,
+      watchProviders: watchProviders,
+      videos: videos,
     );
 
     await cache.cacheDetails(details);
@@ -271,6 +340,7 @@ class MediaRepositoryImpl implements MediaRepository {
   @override
   Future<ActorDetails> getActorDetails(int actorId) async {
     await _ensureInitialized();
+    await _ensureInitialized();
     final actorDetailsFuture = remoteDataSource.getActorDetails(actorId);
     final actorMediasFuture = remoteDataSource.getActorMediaCredits(actorId);
 
@@ -352,14 +422,79 @@ class MediaRepositoryImpl implements MediaRepository {
     await _ensureInitialized();
     return localDataSource.updateListOrder(listName, orderedEntries);
   }
+  @override
+  Future<void> addToList(MediaItem item, String listName) async {
+    await _ensureInitialized();
+    await cache.cacheItem(item);
+    await localDataSource.addToList(
+      id: item.id,
+      type: item.mediaType.name,
+      listName: listName,
+      title: item.title,
+    );
+    try {
+      final details = await getMediaDetails(item.id, type: item.mediaType);
+      if (item.mediaType == MediaType.tv && details.item.seasons != null) {
+        for (final season in details.item.seasons!) {
+          await getSeasonDetails(item.id, season.seasonNumber);
+        }
+      }
+    } catch (_) {}
+  }
 
   @override
+  Future<void> removeFromList(int id, MediaType type, String listName) async {
+    await _ensureInitialized();
+    return localDataSource.removeFromList(id, type.name, listName);
+  }
+
+  @override
+  Future<List<String>> getListEntries(String listName) async {
+    await _ensureInitialized();
+    return localDataSource.getListEntries(listName);
+  }
+
+  @override
+  Future<bool> isInList(int id, MediaType type, String listName) async {
+    await _ensureInitialized();
+    final entries = await localDataSource.getListEntries(listName);
+    return entries.contains('$id:${type.name}');
+  }
+
+  @override
+  Future<List<String>> getAllListNames() async {
+    await _ensureInitialized();
+    return localDataSource.getAllListNames();
+  }
+
+  @override
+  Future<void> createList(String name) async {
+    await _ensureInitialized();
+    return localDataSource.createList(name);
+  }
+
+  @override
+  Future<void> deleteList(String name) async {
+    await _ensureInitialized();
+    return localDataSource.deleteList(name);
+  }
+
+  @override
+  Future<void> updateListOrder(String listName, List<String> orderedEntries) async {
+    await _ensureInitialized();
+    return localDataSource.updateListOrder(listName, orderedEntries);
+  }
+
+  @override
+  Future<void> addToWatchlist(MediaItem item) {
+    return addToList(item, 'watchlist');
   Future<void> addToWatchlist(MediaItem item) {
     return addToList(item, 'watchlist');
   }
 
   @override
   Future<void> removeFromWatchlist(int id, MediaType type) {
+    return removeFromList(id, type, 'watchlist');
     return removeFromList(id, type, 'watchlist');
   }
 
@@ -401,6 +536,12 @@ class MediaRepositoryImpl implements MediaRepository {
       seasonNumber: item.seasonNumber,
       episodeNumber: item.episodeNumber,
     ));
+
+    // If it's a movie, remove it from watchlist (not other lists as per requirement)
+    if (item.type == MediaType.movie) {
+      await removeFromWatchlist(item.tmdbId, item.type);
+    }
+
     // Trigger update of notification date when progress changes
     unawaited(_refreshNotificationDateByTmdbId(item.tmdbId, item.type));
   }
@@ -672,6 +813,58 @@ class MediaRepositoryImpl implements MediaRepository {
         await cache.cacheItem(item);
         await _refreshNotificationDate(item);
       } catch (_) {}
+    }
+  }
+
+  @override
+  Future<List<MediaItem>> getSimilarMedia(int id, MediaType type) async {
+    await _ensureInitialized();
+    try {
+      final results = await remoteDataSource.getSimilarMedia(id, type);
+      for (final item in results) {
+        await cache.cacheItem(item);
+      }
+      return results;
+    } catch (e) {
+      debugPrint('[Repo] getSimilarMedia error: $e');
+      return [];
+    }
+  }
+
+  @override
+  Future<List<MediaItem>> getRecommendedMedia(int id, MediaType type) async {
+    await _ensureInitialized();
+    try {
+      final results = await remoteDataSource.getRecommendedMedia(id, type);
+      for (final item in results) {
+        await cache.cacheItem(item);
+      }
+      return results;
+    } catch (e) {
+      debugPrint('[Repo] getRecommendedMedia error: $e');
+      return [];
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> getWatchProviders(int id, MediaType type) async {
+    await _ensureInitialized();
+    try {
+      return await remoteDataSource.getWatchProviders(id, type);
+    } catch (e) {
+      debugPrint('[Repo] getWatchProviders error: $e');
+      return {};
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> getVideos(int id, MediaType type) async {
+    await _ensureInitialized();
+    try {
+      return await remoteDataSource.getVideos(id, type);
+    } catch (e) {
+      debugPrint('[Repo] getVideos error: $e');
+      return [];
     }
   }
 }

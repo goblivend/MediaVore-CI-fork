@@ -4,11 +4,33 @@ import 'package:mediavore/core/domain/entities/media_details.dart';
 import 'package:mediavore/core/domain/entities/seen_item.dart';
 
 enum ImportMode { append, replace, merge }
+import 'package:mediavore/core/domain/entities/seen_item.dart';
+
+enum ImportMode { append, replace, merge }
 
 /// Abstract class for a repository that handles media (movies and series) data.
 abstract class MediaRepository {
-  /// Searches for media based on a query.
-  Future<List<MediaItem>> searchMedia(String query, {int page = 1});
+  /// Searches for media based on a query with optional filters.
+  Future<List<MediaItem>> searchMedia(
+    String query, {
+    int page = 1,
+    List<int>? genreIds,
+    int? releaseYear,
+    double? minRating,
+    String? language,
+    MediaType? type,
+  });
+
+  /// Discovers media using TMDb's discovery endpoint.
+  Future<List<MediaItem>> discoverMedia({
+    int page = 1,
+    List<int>? genreIds,
+    int? releaseYear,
+    double? minRating,
+    String? language,
+    MediaType type = MediaType.movie,
+    String sortBy = 'popularity.desc',
+  });
 
   /// Gets the details for a specific media item.
   Future<MediaDetails> getMediaDetails(int id, {MediaType type = MediaType.movie});
@@ -40,18 +62,45 @@ abstract class MediaRepository {
   /// Updates the order of items in a list.
   Future<void> updateListOrder(String listName, List<String> orderedEntries);
 
+  /// Adds a media item to a list.
+  Future<void> addToList(MediaItem item, String listName);
+
+  /// Removes a media item from a list.
+  Future<void> removeFromList(int id, MediaType type, String listName);
+
+  /// Gets the entries of all items in a specific list (format "id:type").
+  Future<List<String>> getListEntries(String listName);
+
+  /// Checks if an item is in a specific list.
+  Future<bool> isInList(int id, MediaType type, String listName);
+
+  /// Gets all user-created list names.
+  Future<List<String>> getAllListNames();
+
+  /// Creates a new list.
+  Future<void> createList(String name);
+
+  /// Deletes a list and its items.
+  Future<void> deleteList(String name);
+
+  /// Updates the order of items in a list.
+  Future<void> updateListOrder(String listName, List<String> orderedEntries);
+
   /// Adds a media item to the user's watchlist.
+  Future<void> addToWatchlist(MediaItem item) => addToList(item, 'watchlist');
   Future<void> addToWatchlist(MediaItem item) => addToList(item, 'watchlist');
 
   /// Removes a media item from the user's watchlist.
   Future<void> removeFromWatchlist(int id, MediaType type) => removeFromList(id, type, 'watchlist');
+  Future<void> removeFromWatchlist(int id, MediaType type) => removeFromList(id, type, 'watchlist');
 
   /// Gets the entries of all items in the user's watchlist (format "id:type").
+  Future<List<String>> getWatchlistEntries() => getListEntries('watchlist');
   Future<List<String>> getWatchlistEntries() => getListEntries('watchlist');
 
   /// Checks if an item is in the user's watchlist.
   Future<bool> isInWatchlist(int id, MediaType type) => isInList(id, type, 'watchlist');
-  
+
   /// Gets a few items from a list for preview purposes.
   Future<List<MediaItemPreview>> getListPreviews(String listName, {int limit = 4});
 
@@ -117,6 +166,18 @@ abstract class MediaRepository {
 
   /// Force refreshes all notified items from network.
   Future<void> refreshNotifiedItems();
+
+  /// Gets similar media items.
+  Future<List<MediaItem>> getSimilarMedia(int id, MediaType type);
+
+  /// Gets recommended media items.
+  Future<List<MediaItem>> getRecommendedMedia(int id, MediaType type);
+
+  /// Gets watch providers for a media item.
+  Future<Map<String, dynamic>> getWatchProviders(int id, MediaType type);
+
+  /// Gets videos (trailers, etc.) for a media item.
+  Future<List<Map<String, dynamic>>> getVideos(int id, MediaType type);
 }
 
 class NotifiedItem {

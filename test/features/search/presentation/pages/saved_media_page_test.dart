@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mediavore/core/di/injection.dart';
-import 'package:mediavore/core/di/injection.dart';
 import 'package:mediavore/core/domain/entities/media_item.dart';
 import 'package:mediavore/core/domain/entities/media_details.dart';
 import 'package:mediavore/core/theme/app_palette.dart';
@@ -10,7 +9,6 @@ import 'package:mediavore/features/search/presentation/pages/saved_media_page.da
 import 'package:mediavore/features/search/presentation/providers/search_provider.dart';
 import 'package:mediavore/features/settings/presentation/providers/settings_provider.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:provider/provider.dart';
 import 'package:provider/provider.dart';
 import '../../../../helpers/mocks.dart';
 
@@ -21,13 +19,6 @@ void main() {
   late SettingsProvider settingsProvider;
 
   setUpAll(() {
-    registerFallbackValue(MediaType.movie);
-    registerFallbackValue(const MediaItem(
-      id: 0,
-      title: '',
-      overview: '',
-      releaseDate: '',
-    ));
     registerFallbackValue(MediaType.movie);
     registerFallbackValue(const MediaItem(
       id: 0,
@@ -91,7 +82,6 @@ void main() {
       id: 1,
       title: 'Inception',
       overview: 'Overview',
-      overview: 'Overview',
       releaseDate: '2010',
       mediaType: MediaType.movie,
     );
@@ -104,22 +94,9 @@ void main() {
     // Ensure provider has the updated liked status before building
     await searchProvider.loadLikedStatus();
 
-    when(() => mockMediaRepository.getListEntries('watchlist')).thenAnswer((_) async => ['1:movie']);
-    when(() => mockMediaRepository.getMediaDetails(1, type: MediaType.movie))
-        .thenAnswer((_) async => MediaDetails(item: item, cast: []));
-    when(() => mockMediaRepository.getLikedEntries()).thenAnswer((_) async => ['1:movie']);
-
-    // Ensure provider has the updated liked status before building
-    await searchProvider.loadLikedStatus();
-
     await tester.pumpWidget(createWidgetUnderTest());
-    // Crucial: Update provider's internal list state
-    await searchProvider.loadWatchlist();
     await tester.pumpAndSettle();
 
-    expect(find.text('Inception'), findsOneWidget);
-    // Use matching by icon data since Icons.favorite is used in the widget
-    expect(find.byIcon(Icons.favorite), findsOneWidget);
     expect(find.text('Inception'), findsOneWidget);
     // Use matching by icon data since Icons.favorite is used in the widget
     expect(find.byIcon(Icons.favorite), findsOneWidget);
