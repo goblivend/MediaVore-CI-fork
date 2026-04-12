@@ -249,6 +249,10 @@ class SearchProvider with ChangeNotifier {
     await loadQuickAddItems();
   }
 
+  List<String> getListEntriesCached(String listName) {
+    return _listEntries[listName] ?? [];
+  }
+
   int getSeenCount(MediaItem item) {
     return _seenCounts['${item.id}:${item.mediaType.name}'] ?? 0;
   }
@@ -298,6 +302,22 @@ class SearchProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> removeFromList(MediaItem item, String listName) async {
+    final entry = '${item.id}:${item.mediaType.name}';
+    final currentEntries = _listEntries[listName] ?? [];
+
+    if (currentEntries.contains(entry)) {
+      await repository.removeFromList(item.id, item.mediaType, listName);
+      _listEntries[listName] = currentEntries.where((e) => e != entry).toList();
+      if (listName == 'watchlist') {
+        _watchlistIds.remove(item.id.toString());
+      }
+      _listPreviews[listName] = await repository.getListPreviews(listName);
+      await updateCacheSize();
+      notifyListeners();
+    }
+  }
+
   Future<void> toggleWatchlist(MediaItem item) async {
     await toggleInList(item, 'watchlist');
   }
@@ -311,8 +331,8 @@ class SearchProvider with ChangeNotifier {
   Future<void> createList(String name) async {
     await repository.createList(name);
     await loadListNames();
-    _listEntries[name] = [];
-    _listPreviews[name] = [];
+    _listEntries[name] = await repository.getListEntries(name);
+    _listPreviews[name] = await repository.getListPreviews(name);
     notifyListeners();
   }
 
@@ -762,7 +782,9 @@ class SearchProvider with ChangeNotifier {
 
     try {
       final seenItems = await repository.getSeenItems();
-      final itemsToUpdate = seenItems.where((i) => i.id != null && (i.runtime == null || i.runtime == 0)).toList();
+      final itemsToUpdate = seenItems
+          .where((i) => i.id != null && (i.runtime == null || i.runtime == 0))
+          .toList();
 
       int processed = 0;
       for (final item in itemsToUpdate) {
@@ -771,7 +793,10 @@ class SearchProvider with ChangeNotifier {
         notifyListeners();
 
         try {
-          final details = await repository.getMediaDetails(item.tmdbId, type: item.type);
+          final details = await repository.getMediaDetails(
+            item.tmdbId,
+            type: item.type,
+          );
 
           List<String>? newGenres = item.genres;
           if (newGenres == null || newGenres.isEmpty) {
@@ -800,7 +825,8 @@ class SearchProvider with ChangeNotifier {
             }
           }
 
-          if ((newRuntime != null && newRuntime > 0) || (newGenres != null && newGenres.isNotEmpty)) {
+          if ((newRuntime != null && newRuntime > 0) ||
+              (newGenres != null && newGenres.isNotEmpty)) {
             final updatedItem = item.copyWith(
               runtime: newRuntime,
               genres: newGenres,
